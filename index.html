@@ -2487,7 +2487,7 @@ function viewWork(id) {
   `;
   openModal(`Work — ${w.id}`, body, `
     <button class="btn btn-danger btn-sm" onclick="closeModal();deleteRecord('works','${w.id}')">Delete</button>
-    <button class="btn btn-secondary btn-sm" onclick="printWork('${w.id}')">🖨</button>
+    <button class="btn btn-secondary btn-sm" onclick="printWork('${w.id}')">📤</button>
     <button class="btn btn-secondary" onclick="closeModal();openWorkModal('${w.id}')">✎ Edit</button>
     <button class="btn btn-secondary" onclick="closeModal()">Close</button>
   `);
@@ -2974,7 +2974,7 @@ function viewRequisition(id) {
   `;
   const footer = `
     <button class="btn btn-danger btn-sm" onclick="closeModal();deleteRecord('requisitions','${r.id}')">Delete</button>
-    <button class="btn btn-secondary btn-sm" onclick="printRequisition('${r.id}')">🖨</button>
+    <button class="btn btn-secondary btn-sm" onclick="printRequisition('${r.id}')">📤</button>
     <button class="btn btn-secondary" onclick="closeModal();openReqModal('${r.id}')">✎ Edit</button>
     ${r.status==='pending' && isApprover() ? `<button class="btn btn-secondary" onclick="closeModal();setTimeout(()=>approveReq('${r.id}'),80)">✓ Approve</button>` : ''}
     ${r.status==='approved' && !linkedPO ? `<button class="btn btn-primary" onclick="closeModal();createPOFromReq('${r.id}')">→ Create PO</button>` : ''}
@@ -3014,7 +3014,7 @@ function viewPO(id) {
   `;
   const footer = `
     <button class="btn btn-danger btn-sm" onclick="closeModal();deleteRecord('pos','${r.id}')">Delete</button>
-    <button class="btn btn-secondary btn-sm" onclick="printPO('${r.id}')">🖨</button>
+    <button class="btn btn-secondary btn-sm" onclick="printPO('${r.id}')">📤</button>
     <button class="btn btn-secondary" onclick="closeModal();openPOModal('${r.id}')">✎ Edit</button>
     ${r.status==='sent'||r.status==='partial' ? `<button class="btn btn-primary" onclick="closeModal();createMREFromPO('${r.id}')">→ MRE</button>` : ''}
     ${r.status==='partial' ? `<button class="btn btn-secondary btn-sm" onclick="markPOComplete('${r.id}')">✓ Force Complete</button>` : ''}
@@ -3055,7 +3055,7 @@ function viewMRE(id) {
   `;
   openModal(`MRE — ${r.id}`, body, `
     <button class="btn btn-danger btn-sm" onclick="closeModal();deleteRecord('mres','${r.id}')">Delete</button>
-    <button class="btn btn-secondary btn-sm" onclick="printMRE('${r.id}')">🖨</button>
+    <button class="btn btn-secondary btn-sm" onclick="printMRE('${r.id}')">📤</button>
     <button class="btn btn-secondary" onclick="closeModal();openMREModal('${r.id}')">✎ Edit</button>
   `);
 }
@@ -3137,77 +3137,110 @@ function _printCSS() {
     }`;
 }
 
-// Opens a self-contained print window sized to fit its (short, single-page)
-// content — these SR/PO/MRE/Work printouts are usually just a header, a few
-// fields and a small table, so a fixed A5/A4 page left most of the page
-// blank. (Reports use their own printReport() flow and keep the standard
-// multi-page A4 layout — they can genuinely span several pages, so
-// content-fit sizing doesn't apply there.)
-//
-// "Save as PDF" renders the content to a PDF with custom page dimensions
-// matching it exactly (via html2canvas + jsPDF), bypassing the browser/OS
-// print dialog entirely — mobile print dialogs (notably iOS's native sheet)
-// ignore custom @page CSS sizes and force a fixed paper size, so a real
-// printer-style print preview can't be made to fit short content. A plain
-// "Print" button is kept for anyone who does want to use a real printer,
-// where paper size is a hardware constraint we can't do anything about.
-function openPrintWindow(docTitle, content) {
-  const w = window.open('', '_blank');
-  if (!w) { notify('Pop-up blocked — allow pop-ups for this page and try again.', true); return; }
-  const printedAt = new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const safeTitle = docTitle.replace(/[^a-z0-9-_]+/gi, '_');
-  w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>${docTitle}</title>
-    <style>${_printCSS()}</style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
-  </head><body>
-    <div class="p-no-print">
-      <button class="p-btn" id="p-btn-pdf" onclick="savePdf()">⬇ Save as PDF</button>
-      <button class="p-btn p-btn-secondary" onclick="window.print()">🖨 Print</button>
-      <button class="p-btn p-btn-close" onclick="window.close()">✕ Close</button>
-    </div>
-    ${content}
-    <div class="p-footer">Printed: ${printedAt} &nbsp;·&nbsp; Site: ${APP.currentSite} &nbsp;·&nbsp; By: ${APP.currentUser}</div>
-    <script>
-      // Size the @page rule to the actual content (used by the "Print"
-      // fallback button — real printers still snap to their own paper sizes,
-      // but this at least avoids excess blank space when saving via the
-      // browser's own print-to-PDF rather than our custom PDF export).
-      window.addEventListener('load', function() {
-        var heightMM = Math.max(90, Math.ceil(document.body.scrollHeight * 25.4 / 96) + 15);
-        var pageStyle = document.createElement('style');
-        pageStyle.textContent = '@page { size: 148mm ' + heightMM + 'mm; margin: 0; }';
-        document.head.appendChild(pageStyle);
-      });
-      window.addEventListener('afterprint', function() { window.close(); });
+// Loads an external script once and caches the in-flight promise, so
+// concurrent/repeated calls don't inject duplicate <script> tags.
+const _scriptLoadPromises = {};
+function loadScriptOnce(src) {
+  if (_scriptLoadPromises[src]) return _scriptLoadPromises[src];
+  _scriptLoadPromises[src] = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => { delete _scriptLoadPromises[src]; reject(new Error('Failed to load ' + src)); };
+    document.head.appendChild(s);
+  });
+  return _scriptLoadPromises[src];
+}
 
-      async function savePdf() {
-        var btn = document.getElementById('p-btn-pdf');
-        var toolbar = document.querySelector('.p-no-print');
-        btn.textContent = 'Generating…';
-        btn.disabled = true;
-        toolbar.style.visibility = 'hidden';
+// Renders an SR/PO/MRE/Work document to a PDF sized to match its content
+// exactly, then hands it straight to the OS share sheet (or downloads it,
+// on browsers without Web Share file support) — one tap, no preview window,
+// no print dialog. Mobile print dialogs (notably iOS's native print sheet)
+// ignore custom @page sizes and force a fixed paper size from a short list,
+// so a real printer-style print preview can't be made to fit short content;
+// rendering our own PDF image sidesteps that entirely.
+//
+// Rendered off-screen in a hidden iframe (its own isolated document, so the
+// print stylesheet's classes can't collide with the app's own CSS) rather
+// than a visible popup window — avoids both the popup-blocker issue and the
+// "now go find the Save as PDF button" extra step.
+async function shareDocument(docTitle, content) {
+  showOverlay('Preparing PDF…');
+  try {
+    await Promise.all([
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
+    ]);
+
+    const printedAt = new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const safeTitle = docTitle.replace(/[^a-z0-9-_]+/gi, '_');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <style>${_printCSS()}</style>
+      </head><body>
+      ${content}
+      <div class="p-footer">Printed: ${printedAt} &nbsp;·&nbsp; Site: ${APP.currentSite} &nbsp;·&nbsp; By: ${APP.currentUser}</div>
+      </body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:600px;height:900px;border:none;';
+    document.body.appendChild(iframe);
+    try {
+      await new Promise((resolve, reject) => {
+        iframe.onload = resolve;
+        iframe.onerror = reject;
+        iframe.srcdoc = html;
+      });
+      // One extra frame so layout/fonts settle before rasterizing.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const scale = 2;
+      const body = iframe.contentDocument.body;
+      // html2canvas defaults to rendering the full iframe viewport (the
+      // fixed 600x900 above), not the content's actual size — without this
+      // the canvas was mostly blank space, which then got squashed into the
+      // PDF page and looked stretched. Pin it to the real content bounds.
+      const canvas = await html2canvas(body, {
+        scale, backgroundColor: '#ffffff',
+        width: body.scrollWidth, height: body.scrollHeight,
+        windowWidth: body.scrollWidth, windowHeight: body.scrollHeight,
+      });
+      // Derive the PDF page size from the canvas itself (dividing back out
+      // the render scale) rather than measuring the source element
+      // separately — any mismatch between those two would stretch the
+      // image, since addImage() fills the exact box it's given.
+      const pxToMM = 25.4 / 96 / scale;
+      const widthMM = canvas.width * pxToMM;
+      const heightMM = canvas.height * pxToMM;
+      const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: [widthMM, heightMM] });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, widthMM, heightMM);
+
+      const filename = safeTitle + '.pdf';
+      const blob = pdf.output('blob');
+      const file = new File([blob], filename, { type: 'application/pdf' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        hideOverlay();
         try {
-          var canvas = await html2canvas(document.body, { scale: 2, backgroundColor: '#ffffff' });
-          toolbar.style.visibility = '';
-          var widthMM  = document.body.scrollWidth  * 25.4 / 96;
-          var heightMM = document.body.scrollHeight * 25.4 / 96;
-          var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: [widthMM, heightMM] });
-          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, widthMM, heightMM);
-          pdf.save('${safeTitle}.pdf');
+          await navigator.share({ files: [file], title: docTitle });
         } catch (err) {
-          toolbar.style.visibility = '';
-          alert('Could not generate PDF: ' + err.message);
+          if (err.name !== 'AbortError') throw err; // AbortError = user cancelled the share sheet, not a failure
         }
-        btn.textContent = '⬇ Save as PDF';
-        btn.disabled = false;
+        return;
       }
-    <\/script>
-  </body></html>`);
-  w.document.close();
+      // Desktop / unsupported browsers — fall back to a direct download.
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      iframe.remove();
+    }
+  } catch (err) {
+    notify('Could not generate PDF: ' + err.message, true);
+  } finally {
+    hideOverlay();
+  }
 }
 
 // ── Requisition ──
@@ -3225,7 +3258,7 @@ function printRequisition(id) {
     <table><thead><tr><th>Trade</th><th>Qty</th><th>Unit</th><th>Work</th></tr></thead>
     <tbody>${r.laborItems.map(l => `<tr><td>${l.trade}</td><td>${l.qty}</td><td>${l.unit||'—'}</td><td>${l.work||'—'}</td></tr>`).join('')}</tbody></table>` : '';
 
-  openPrintWindow(`SR — ${r.id}`, `
+  shareDocument(`SR — ${r.id}`, `
     <div class="p-header">
       <div class="p-header-left">
         <div class="p-type">Site Requisition</div>
@@ -3273,7 +3306,7 @@ function printPO(id) {
     <tr class="tr-total"><td colspan="3">Labor Total</td><td class="amt">${fmtAmt(labTotal)}</td><td></td></tr>
     </tbody></table>` : '';
 
-  openPrintWindow(`PO — ${r.id}`, `
+  shareDocument(`PO — ${r.id}`, `
     <div class="p-header">
       <div class="p-header-left">
         <div class="p-type">Purchase Order</div>
@@ -3320,7 +3353,7 @@ function printMRE(id) {
       `<tr><td>${l.trade}</td><td style="font-weight:600;">${l.qty||'—'}</td><td>${l.unit||'—'}</td></tr>`
     ).join('')}</tbody></table>` : '';
 
-  openPrintWindow(`MRE — ${r.id}`, `
+  shareDocument(`MRE — ${r.id}`, `
     <div class="p-header">
       <div class="p-header-left">
         <div class="p-type">Site Receipt</div>
@@ -3397,7 +3430,7 @@ function printWork(id) {
       }).join('')
     : '<tr><td colspan="5" style="color:#888;font-style:italic;">No labor estimated</td></tr>';
 
-  openPrintWindow(`Work — ${w.id}`, `
+  shareDocument(`Work — ${w.id}`, `
     <div class="p-header">
       <div class="p-header-left">
         <div class="p-type">Work Record</div>
