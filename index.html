@@ -304,10 +304,12 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
   .items-table input[readonly] { background: var(--bg); color: var(--text-2); }
   .item-desc-cat { font-size: 11px; color: var(--text-3); padding: 2px 2px 0; min-height: 14px; }
   .item-desc-cell { position: relative; }
-  .combo-list { display: none; position: fixed; z-index: 9999; max-height: 220px; overflow-y: auto; background: var(--surface); border: 1.5px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); list-style: none; }
-  .combo-item { padding: 10px 12px; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .combo-list { display: none; position: fixed; z-index: 9999; max-height: 280px; overflow-y: auto; background: var(--surface); border: 1.5px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); list-style: none; }
+  .combo-item { padding: 12px 14px; min-height: 48px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; gap: 2px; border-bottom: 1px solid var(--border); }
+  .combo-item:last-child { border-bottom: none; }
   .combo-item:hover, .combo-item:active { background: var(--gray-light); }
-  .combo-cat { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .combo-name { font-size: 15px; line-height: 1.3; white-space: normal; word-break: break-word; }
+  .combo-cat { font-size: 12px; color: var(--text-3); }
   .combo-empty { padding: 10px 12px; font-size: 13px; color: var(--text-3); }
 
   .section-divider { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; padding: 4px 0; border-bottom: 1px solid var(--border); }
@@ -2032,10 +2034,16 @@ function comboPosition(input, list) {
   const r = input.getBoundingClientRect();
   const anchor = comboFixedAncestor(input);
   const ar = anchor ? anchor.getBoundingClientRect() : { top: 0, left: 0 };
+  // The input itself is often narrow (a tight table column) — widen the
+  // dropdown so item names don't wrap onto several lines, but keep it
+  // clamped to the viewport so it doesn't run off the edge of the screen.
+  const margin = 8;
+  const width = Math.min(Math.max(r.width, 260), window.innerWidth - margin * 2);
+  const left = Math.min(Math.max(r.left, margin), window.innerWidth - width - margin);
   list.style.position = 'fixed';
-  list.style.left = (r.left - ar.left) + 'px';
+  list.style.left = (left - ar.left) + 'px';
   list.style.top = (r.bottom - ar.top + 2) + 'px';
-  list.style.width = r.width + 'px';
+  list.style.width = width + 'px';
 }
 
 function comboRender(input) {
@@ -2043,10 +2051,12 @@ function comboRender(input) {
   if (!list || !list.classList.contains('combo-list')) return;
   const type = formItemType();
   const items = type === 'material' ? (APP.masterData.materials||[]) : (APP.masterData.laborTypes||[]);
-  const q = input.value.trim().toLowerCase();
-  const matches = (q ? items.filter(i => i.name.toLowerCase().includes(q)) : items).slice(0, 50);
+  const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = (words.length
+    ? items.filter(i => { const n = i.name.toLowerCase(); return words.every(w => n.includes(w)); })
+    : items).slice(0, 50);
   list.innerHTML = matches.length
-    ? matches.map(i => `<li class="combo-item" data-name="${i.name}" onmousedown="comboPick(this)">${i.name}${i.category?`<span class="combo-cat">${i.category}</span>`:''}</li>`).join('')
+    ? matches.map(i => `<li class="combo-item" data-name="${i.name}" onmousedown="comboPick(this)"><span class="combo-name">${i.name}</span>${i.category?`<span class="combo-cat">${i.category}</span>`:''}</li>`).join('')
     : '<li class="combo-empty">No matches</li>';
   comboPosition(input, list);
   list.style.display = 'block';
