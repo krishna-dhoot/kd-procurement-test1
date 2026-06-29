@@ -544,7 +544,9 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
 // the last-loaded data) with no signal, instead of a blank error page.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => { window.__swRegError = null; console.log('SW registered', reg.scope); })
+      .catch((err) => { window.__swRegError = err.message || String(err); console.error('SW registration failed', err); });
   });
 }
 </script>
@@ -4308,13 +4310,28 @@ function debugPushState() {
   if (!window.OneSignalDeferred) { alert('OneSignal not loaded'); return; }
   window.OneSignalDeferred.push(async (OneSignal) => {
     const sub = OneSignal.User.PushSubscription;
+    let liveRegAttemptError = '(not attempted — already registered)';
+    const existingReg = await navigator.serviceWorker.getRegistration();
+    if (!existingReg) {
+      // Try registering right now, here, so we get a fresh, fully-awaited
+      // error rather than relying on whatever happened (or didn't) at
+      // page-load time.
+      try {
+        await navigator.serviceWorker.register('./sw.js');
+        liveRegAttemptError = '(succeeded just now)';
+      } catch (err) {
+        liveRegAttemptError = err.message || String(err);
+      }
+    }
     const info = {
       browserPermission: Notification.permission,
       optedIn: sub.optedIn,
       subscriptionId: sub.id || '(none)',
       subscriptionToken: sub.token ? sub.token.slice(0, 24) + '…' : '(none)',
       onesignalId: OneSignal.User.onesignalId || '(none)',
-      swRegistered: !!(await navigator.serviceWorker.getRegistration()),
+      swRegisteredAtPageLoad: !!existingReg,
+      pageLoadRegError: window.__swRegError || '(none recorded)',
+      liveRegAttemptError,
     };
     alert(JSON.stringify(info, null, 2));
   });
