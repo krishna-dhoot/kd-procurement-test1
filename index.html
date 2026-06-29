@@ -3181,8 +3181,13 @@ async function shareDocument(docTitle, content) {
       <div class="p-footer">Printed: ${printedAt} &nbsp;·&nbsp; Site: ${APP.currentSite} &nbsp;·&nbsp; By: ${APP.currentUser}</div>
       </body></html>`;
 
+    // Kept within the actual viewport (top:0;left:0) rather than pushed far
+    // off-screen — some mobile browsers skip fully rendering/painting content
+    // positioned way outside the viewport as a performance optimization,
+    // which produced incomplete/cropped captures. opacity + pointer-events
+    // keep it invisible and non-interactive instead.
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:600px;height:900px;border:none;';
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:600px;height:900px;border:none;opacity:0;pointer-events:none;z-index:-1;';
     document.body.appendChild(iframe);
     try {
       await new Promise((resolve, reject) => {
