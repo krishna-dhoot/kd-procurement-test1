@@ -304,7 +304,7 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
   .items-table input[readonly] { background: var(--bg); color: var(--text-2); }
   .item-desc-cat { font-size: 11px; color: var(--text-3); padding: 2px 2px 0; min-height: 14px; }
   .item-desc-cell { position: relative; }
-  .combo-list { display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 50; margin-top: 2px; max-height: 220px; overflow-y: auto; background: var(--surface); border: 1.5px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); list-style: none; }
+  .combo-list { display: none; position: fixed; z-index: 9999; max-height: 220px; overflow-y: auto; background: var(--surface); border: 1.5px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); list-style: none; }
   .combo-item { padding: 10px 12px; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
   .combo-item:hover, .combo-item:active { background: var(--gray-light); }
   .combo-cat { font-size: 11px; color: var(--text-3); white-space: nowrap; }
@@ -2010,6 +2010,34 @@ function autoDescUnit(sel) {
 
 // Custom searchable dropdown for the SR item picker — replaces <datalist>,
 // which iOS Safari renders unreliably (often shows no suggestions at all).
+// Positioned as `fixed` (computed from the input's screen position) rather than
+// relying on CSS `absolute`, because the items table sits in a horizontally
+// scrolling wrapper whose `overflow-x: auto` implicitly clips the Y axis too —
+// an absolutely positioned dropdown there renders but is invisibly clipped.
+//
+// A CSS `transform` on an ancestor (the modal uses one for its slide-in
+// animation) creates a new containing block for `position: fixed` —
+// coordinates then resolve relative to that ancestor, not the viewport.
+// Walk up for one and offset against it if found.
+function comboFixedAncestor(el) {
+  let p = el.parentElement;
+  while (p && p !== document.body) {
+    if (getComputedStyle(p).transform !== 'none') return p;
+    p = p.parentElement;
+  }
+  return null;
+}
+
+function comboPosition(input, list) {
+  const r = input.getBoundingClientRect();
+  const anchor = comboFixedAncestor(input);
+  const ar = anchor ? anchor.getBoundingClientRect() : { top: 0, left: 0 };
+  list.style.position = 'fixed';
+  list.style.left = (r.left - ar.left) + 'px';
+  list.style.top = (r.bottom - ar.top + 2) + 'px';
+  list.style.width = r.width + 'px';
+}
+
 function comboRender(input) {
   const list = input.nextElementSibling;
   if (!list || !list.classList.contains('combo-list')) return;
@@ -2020,6 +2048,7 @@ function comboRender(input) {
   list.innerHTML = matches.length
     ? matches.map(i => `<li class="combo-item" data-name="${i.name}" onmousedown="comboPick(this)">${i.name}${i.category?`<span class="combo-cat">${i.category}</span>`:''}</li>`).join('')
     : '<li class="combo-empty">No matches</li>';
+  comboPosition(input, list);
   list.style.display = 'block';
 }
 
@@ -2035,6 +2064,12 @@ function comboHide(input) {
   const list = input.nextElementSibling;
   if (list && list.classList.contains('combo-list')) setTimeout(() => { list.style.display = 'none'; }, 150);
 }
+
+// Close any open combo dropdown if the page scrolls (e.g. the items table's
+// horizontal scroller), since a fixed-position list won't track the input.
+window.addEventListener('scroll', () => {
+  document.querySelectorAll('.combo-list').forEach(l => { l.style.display = 'none'; });
+}, true);
 
 // Form-level type switch for SR — clears rows and rebuilds with one blank row
 function onReqTypeChange() {
