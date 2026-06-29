@@ -3077,11 +3077,12 @@ function _printCSS() {
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a18; background: #fff;
            padding: 20px 22px; max-width: 540px; margin: 0 auto; }
-    .p-no-print { margin-bottom: 14px; display: flex; gap: 8px; }
+    .p-no-print { margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
     .p-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 7px;
              font-size: 12px; font-weight: 600; cursor: pointer; border: none;
              font-family: Arial, sans-serif; background: #0F6E56; color: #fff; }
-    .p-btn-close { background: #ECEBE5; color: #5F5E5A; }
+    .p-btn:disabled { opacity: 0.6; cursor: default; }
+    .p-btn-secondary, .p-btn-close { background: #ECEBE5; color: #5F5E5A; }
     /* ── Header ── */
     .p-header { display: flex; align-items: flex-start; justify-content: space-between;
                 margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2.5px solid #0F6E56; gap: 12px; }
@@ -3139,44 +3140,74 @@ function _printCSS() {
 // Opens a self-contained print window sized to fit its (short, single-page)
 // content — these SR/PO/MRE/Work printouts are usually just a header, a few
 // fields and a small table, so a fixed A5/A4 page left most of the page
-// blank. We measure the rendered content after load and set a custom @page
-// height to match it, keeping the A5 width. (Reports use their own
-// printReport() flow and keep the standard multi-page A4 layout — they can
-// genuinely span several pages, so content-fit sizing doesn't apply there.)
+// blank. (Reports use their own printReport() flow and keep the standard
+// multi-page A4 layout — they can genuinely span several pages, so
+// content-fit sizing doesn't apply there.)
+//
+// "Save as PDF" renders the content to a PDF with custom page dimensions
+// matching it exactly (via html2canvas + jsPDF), bypassing the browser/OS
+// print dialog entirely — mobile print dialogs (notably iOS's native sheet)
+// ignore custom @page CSS sizes and force a fixed paper size, so a real
+// printer-style print preview can't be made to fit short content. A plain
+// "Print" button is kept for anyone who does want to use a real printer,
+// where paper size is a hardware constraint we can't do anything about.
 function openPrintWindow(docTitle, content) {
   const w = window.open('', '_blank');
   if (!w) { notify('Pop-up blocked — allow pop-ups for this page and try again.', true); return; }
   const printedAt = new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const safeTitle = docTitle.replace(/[^a-z0-9-_]+/gi, '_');
   w.document.write(`<!DOCTYPE html><html><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>${docTitle}</title>
     <style>${_printCSS()}</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
   </head><body>
     <div class="p-no-print">
-      <button class="p-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+      <button class="p-btn" id="p-btn-pdf" onclick="savePdf()">⬇ Save as PDF</button>
+      <button class="p-btn p-btn-secondary" onclick="window.print()">🖨 Print</button>
       <button class="p-btn p-btn-close" onclick="window.close()">✕ Close</button>
     </div>
     ${content}
     <div class="p-footer">Printed: ${printedAt} &nbsp;·&nbsp; Site: ${APP.currentSite} &nbsp;·&nbsp; By: ${APP.currentUser}</div>
+    <script>
+      // Size the @page rule to the actual content (used by the "Print"
+      // fallback button — real printers still snap to their own paper sizes,
+      // but this at least avoids excess blank space when saving via the
+      // browser's own print-to-PDF rather than our custom PDF export).
+      window.addEventListener('load', function() {
+        var heightMM = Math.max(90, Math.ceil(document.body.scrollHeight * 25.4 / 96) + 15);
+        var pageStyle = document.createElement('style');
+        pageStyle.textContent = '@page { size: 148mm ' + heightMM + 'mm; margin: 0; }';
+        document.head.appendChild(pageStyle);
+      });
+      window.addEventListener('afterprint', function() { window.close(); });
+
+      async function savePdf() {
+        var btn = document.getElementById('p-btn-pdf');
+        var toolbar = document.querySelector('.p-no-print');
+        btn.textContent = 'Generating…';
+        btn.disabled = true;
+        toolbar.style.visibility = 'hidden';
+        try {
+          var canvas = await html2canvas(document.body, { scale: 2, backgroundColor: '#ffffff' });
+          toolbar.style.visibility = '';
+          var widthMM  = document.body.scrollWidth  * 25.4 / 96;
+          var heightMM = document.body.scrollHeight * 25.4 / 96;
+          var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: [widthMM, heightMM] });
+          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, widthMM, heightMM);
+          pdf.save('${safeTitle}.pdf');
+        } catch (err) {
+          toolbar.style.visibility = '';
+          alert('Could not generate PDF: ' + err.message);
+        }
+        btn.textContent = '⬇ Save as PDF';
+        btn.disabled = false;
+      }
+    <\/script>
   </body></html>`);
   w.document.close();
-
-  // Closing the tab after the print dialog is dismissed (printed OR
-  // cancelled) means there's nothing left to navigate back from on mobile —
-  // it just returns to the app. Falls back to the manual Close button on
-  // browsers where afterprint doesn't fire reliably.
-  w.addEventListener('afterprint', () => w.close());
-
-  const sizeAndPrint = () => {
-    const heightMM = Math.max(90, Math.ceil(w.document.body.scrollHeight * 25.4 / 96) + 15);
-    const pageStyle = w.document.createElement('style');
-    pageStyle.textContent = `@page { size: 148mm ${heightMM}mm; margin: 0; }`;
-    w.document.head.appendChild(pageStyle);
-    w.print();
-  };
-  if (w.document.readyState === 'complete') sizeAndPrint();
-  else w.addEventListener('load', sizeAndPrint);
 }
 
 // ── Requisition ──
