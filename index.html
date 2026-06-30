@@ -296,6 +296,7 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
   .wizard-card.big { padding: 36px 16px; min-height: 150px; }
   .wizard-card.big .wizard-card-icon { font-size: 40px; }
   .wizard-card-icon { font-size: 26px; }
+  .wizard-card-img { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; }
   .wizard-card-label { font-size: 14px; font-weight: 600; color: var(--text); }
   .wizard-card.selected { border-color: var(--green); background: var(--green-light); }
   .wizard-card.selected .wizard-card-label { color: var(--green-dark); }
@@ -1505,9 +1506,14 @@ function renderAdmin() {
   const materialsCard = `
     <div class="admin-list-card" id="admin-card-materials">
       <div class="admin-list-header"><h3>Materials / Items</h3><span>${(md.materials||[]).length} entries</span></div>
+      <div style="padding:8px 10px 0;">
+        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('materials')">🖼️ Fetch Images</button>
+        <span id="img-fetch-progress-materials" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
+      </div>
       <div class="admin-item-list">
         ${(md.materials||[]).map(m=>`
           <div class="admin-item">
+            ${m.imageUrl ? `<img src="${m.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
             <div style="flex:1;min-width:0;">
               <div class="admin-item-name">${m.name}</div>
               <div class="admin-item-sub">${m.unit||''}</div>
@@ -1532,9 +1538,14 @@ function renderAdmin() {
   const laborCard = `
     <div class="admin-list-card" id="admin-card-laborTypes">
       <div class="admin-list-header"><h3>Labor Trades</h3><span>${(md.laborTypes||[]).length} entries</span></div>
+      <div style="padding:8px 10px 0;">
+        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('laborTypes')">🖼️ Fetch Images</button>
+        <span id="img-fetch-progress-laborTypes" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
+      </div>
       <div class="admin-item-list">
         ${(md.laborTypes||[]).map(l=>`
           <div class="admin-item">
+            ${l.imageUrl ? `<img src="${l.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
             <div style="flex:1;min-width:0;">
               <div class="admin-item-name">${l.name}</div>
               <div class="admin-item-sub">${l.unit||''}</div>
@@ -1911,6 +1922,7 @@ function renderGsSetup() {
             <div>4. Set <em>Execute as</em>: <strong>Me</strong> &nbsp;|&nbsp; <em>Who has access</em>: <strong>Anyone</strong></div>
             <div>5. Copy the <strong>Web App URL</strong> and paste it here</div>
             <div>6. In the script, paste your OneSignal <strong>REST API Key</strong> (OneSignal dashboard → Settings → Keys &amp; IDs) into <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">ONESIGNAL_REST_API_KEY</code></div>
+            <div>7. Paste your <strong>Pexels API Key</strong> (pexels.com/api) into <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">PEXELS_API_KEY</code></div>
           </div>
         </div>
 
@@ -1919,6 +1931,40 @@ function renderGsSetup() {
           <pre style="margin:0;padding:14px;font-size:11px;font-family:'DM Mono',monospace;background:var(--surface);overflow-x:auto;color:var(--text);line-height:1.6;">// ── OneSignal config (fill this in) ───────────────────────────
 var ONESIGNAL_APP_ID       = 'db6beb30-8bc6-44fc-8dee-833e0ace7746';
 var ONESIGNAL_REST_API_KEY = 'YOUR_ONESIGNAL_REST_API_KEY_HERE'; // OneSignal dashboard → Settings → Keys &amp; IDs
+
+// ── Pexels config (free stock-photo search, fill this in) ─────
+var PEXELS_API_KEY = 'YOUR_PEXELS_API_KEY_HERE'; // pexels.com/api
+
+// Searches Pexels for a representative photo of an item name, downloads
+// it, and saves it to Drive so the app has a stable URL to use — done
+// server-side (not in the browser) purely to avoid CORS, since the
+// browser can't read cross-origin image bytes from pexels.com directly.
+function fetchItemImage_(query) {
+  try {
+    if (!PEXELS_API_KEY || PEXELS_API_KEY === 'YOUR_PEXELS_API_KEY_HERE') {
+      return { success: false, error: 'PEXELS_API_KEY not set in Apps Script' };
+    }
+    var searchRes = UrlFetchApp.fetch(
+      'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=1',
+      { headers: { Authorization: PEXELS_API_KEY }, muteHttpExceptions: true }
+    );
+    var searchData = JSON.parse(searchRes.getContentText());
+    var photo = searchData.photos &amp;&amp; searchData.photos[0];
+    if (!photo) return { success: false, error: 'No matching stock photo found' };
+
+    var imgRes = UrlFetchApp.fetch(photo.src.medium, { muteHttpExceptions: true });
+    var blob = imgRes.getBlob();
+
+    var folders = DriveApp.getFoldersByName('Procurement Item Images');
+    var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('Procurement Item Images');
+    var file = folder.createFile(blob).setName(query + '.jpg');
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    return { success: true, imageUrl: 'https://drive.google.com/uc?export=view&amp;id=' + file.getId() };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
 
 // ── Notification helpers ──────────────────────────────────────
 function sendOneSignal_(title, msg) {
@@ -1971,6 +2017,14 @@ function doPost(e) {
     handleNotify_(data.type, data.data || {});
     return ContentService
       .createTextOutput(JSON.stringify({success:true}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // FETCH ITEM IMAGE — search Pexels, save to Drive, return the URL
+  if (data.action === 'fetchItemImage') {
+    var imgResult = fetchItemImage_(data.query);
+    return ContentService
+      .createTextOutput(JSON.stringify(imgResult))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -2773,7 +2827,9 @@ function wizardRender() {
           return `<div class="wizard-card-wrap">
             <div class="wizard-card ${sel ? 'selected' : ''}" onclick="wizardCardTap('${wizardEsc(i.name)}')">
               ${sel ? '<div class="wizard-card-check">✓</div>' : ''}
-              <div class="wizard-card-icon">${WZ.type === 'material' ? '📦' : '👷'}</div>
+              ${i.imageUrl
+                ? `<img src="${i.imageUrl}" alt="" class="wizard-card-img">`
+                : `<div class="wizard-card-icon">${WZ.type === 'material' ? '📦' : '👷'}</div>`}
               <div class="wizard-card-label">${i.name}</div>
               ${sel ? `<div class="wizard-card-qty-badge">${WZ.qty[i.name]}${i.unit ? ' ' + i.unit : ''}</div>` : ''}
             </div>
@@ -4520,6 +4576,45 @@ function setSiteLocation(id) {
     (err) => notify('Could not get location: ' + err.message, true),
     { enableHighAccuracy: true, timeout: 15000 }
   );
+}
+
+// ── Representative stock images (Pexels, via Apps Script) ──
+// Unlike syncToSheets/deleteFromSheets (fire-and-forget, mode:'no-cors'),
+// this needs to actually read the response (the image URL), so it's a
+// plain fetch — the same pattern loadFromSheets() already uses
+// successfully for GET requests.
+async function fetchImageForItem(query) {
+  if (!APP.gsConnected || !APP.gsScriptUrl) return { success: false, error: 'Not connected to Google Sheets' };
+  try {
+    const res = await fetch(APP.gsScriptUrl, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'fetchItemImage', query }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Backfills images for whichever materials/laborTypes don't have one yet —
+// sequential (not parallel) so a single slow Apps Script execution doesn't
+// trigger a pile of concurrent Drive uploads, and so progress can be shown.
+async function fetchAllItemImages(collectionKey) {
+  const items = (APP.masterData[collectionKey] || []).filter((i) => !i.imageUrl);
+  const progressEl = document.getElementById('img-fetch-progress-' + collectionKey);
+  if (!items.length) { notify('All items already have images.'); return; }
+  let done = 0, failed = 0;
+  for (const item of items) {
+    if (progressEl) progressEl.textContent = `Fetching ${done + 1}/${items.length}…`;
+    const result = await fetchImageForItem(item.name);
+    if (result.success) { item.imageUrl = result.imageUrl; done++; }
+    else { failed++; console.warn('Image fetch failed for', item.name, result.error); }
+  }
+  saveLocal();
+  syncMasterData();
+  if (progressEl) progressEl.textContent = '';
+  notify(`${done} image${done===1?'':'s'} fetched${failed ? `, ${failed} failed (see console)` : ''}`, failed > 0 && done === 0);
+  render('admin');
 }
 
 // ══════════════════════════════════════════
