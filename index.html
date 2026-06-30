@@ -137,25 +137,23 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
     --text: #1a1a18; --text-2: #5F5E5A; --text-3: #888780;
     --radius: 12px; --radius-sm: 8px;
     --shadow: 0 1px 4px rgba(0,0,0,0.07);
-    --tab-h: 64px; --top-h: 76px;
+    --tab-h: 64px; --top-h: 56px;
   }
 
   html, body { height: 100%; overflow: hidden; }
   body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; }
 
-  /* ══ TOPBAR (new-ux: two rows — site name + actions, then page title) ══ */
+  /* ══ TOPBAR (new-ux: single row — page title + refresh/logout; site name lives in the drawer instead) ══ */
   .topbar {
     position: fixed; top: 0; left: 0; right: 0; height: var(--top-h); z-index: 90;
     background: var(--green-dark); color: #fff;
-    display: flex; flex-direction: column; justify-content: center; gap: 2px;
-    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
+    padding: env(safe-area-inset-top, 0px) 12px 0;
   }
-  .topbar-row1 { display: flex; align-items: center; gap: 8px; }
+  .topbar-row1 { display: flex; align-items: center; gap: 8px; height: 100%; }
   .topbar-menu-btn { width: 36px; height: 36px; border: none; background: none; color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; margin-left: -6px; }
   .topbar-menu-btn:active { background: rgba(255,255,255,0.15); }
-  .topbar-site-name { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-site-name { font-size: 16px; font-weight: 700; flex: 1; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-row1-actions { display: flex; align-items: center; gap: 2px; }
-  .topbar-title { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75); padding-left: 30px; }
   .topbar-actions { display: flex; align-items: center; gap: 4px; }
   .topbar-icon-btn { width: 36px; height: 36px; border: none; background: none; color: rgba(255,255,255,0.85); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
   .topbar-icon-btn:active { background: rgba(255,255,255,0.15); }
@@ -492,7 +490,7 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
     .tab-bar { display: none; }
     .drawer { left: 0 !important; width: 230px; box-shadow: none; }
     .drawer-overlay { display: none !important; }
-    .topbar { left: 230px; padding: 8px 20px; }
+    .topbar { left: 230px; padding: 0 20px; }
     .topbar-menu-btn { display: none; }
     .main { left: 230px; top: var(--top-h); bottom: 0; position: fixed; }
     .content { padding: 20px 24px; }
@@ -657,8 +655,8 @@ if ('serviceWorker' in navigator) {
     <div class="drawer-logo">
       <div class="drawer-logo-icon">🏗️</div>
       <div>
-        <div class="drawer-logo-text">Site Procurement</div>
-        <div class="drawer-logo-sub">Construction Manager</div>
+        <div class="drawer-logo-text" id="site-chip">Site</div>
+        <div class="drawer-logo-sub">Site Procurement</div>
       </div>
     </div>
   </div>
@@ -700,13 +698,12 @@ if ('serviceWorker' in navigator) {
 <header class="topbar">
   <div class="topbar-row1">
     <button class="topbar-menu-btn" onclick="openDrawer()" aria-label="Menu">☰</button>
-    <span class="topbar-site-name" id="site-chip">Site</span>
+    <span class="topbar-site-name" id="topbar-title">Dashboard</span>
     <div class="topbar-row1-actions">
       <button class="topbar-icon-btn" onclick="manualRefresh()" title="Refresh — load latest data from server" style="font-size:16px;">↻</button>
       <button class="topbar-icon-btn" onclick="confirmLogout()" title="Log out" style="font-size:16px;">⎋</button>
     </div>
   </div>
-  <div class="topbar-row2" id="topbar-title">Dashboard</div>
   <div class="topbar-actions" style="display:none;">
     <!-- kept (hidden) so legacy null-checked JS (updateGsStatus, updateNotifBadge) has somewhere to look without erroring -->
     <span class="notif-badge" id="notif-badge"></span>
