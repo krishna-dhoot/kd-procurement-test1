@@ -137,24 +137,27 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
     --text: #1a1a18; --text-2: #5F5E5A; --text-3: #888780;
     --radius: 12px; --radius-sm: 8px;
     --shadow: 0 1px 4px rgba(0,0,0,0.07);
-    --tab-h: 64px; --top-h: 54px;
+    --tab-h: 64px; --top-h: 76px;
   }
 
   html, body { height: 100%; overflow: hidden; }
   body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; }
 
-  /* ══ TOPBAR ══ */
+  /* ══ TOPBAR (new-ux: two rows — site name + actions, then page title) ══ */
   .topbar {
     position: fixed; top: 0; left: 0; right: 0; height: var(--top-h); z-index: 90;
     background: var(--green-dark); color: #fff;
-    display: flex; align-items: center; padding: 0 12px; gap: 8px;
-    safe-area-inset-top: env(safe-area-inset-top);
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
   }
-  .topbar-menu-btn { width: 40px; height: 40px; border: none; background: none; color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; }
+  .topbar-row1 { display: flex; align-items: center; gap: 8px; }
+  .topbar-menu-btn { width: 36px; height: 36px; border: none; background: none; color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; margin-left: -6px; }
   .topbar-menu-btn:active { background: rgba(255,255,255,0.15); }
-  .topbar-title { font-size: 16px; font-weight: 600; flex: 1; letter-spacing: -0.01em; }
+  .topbar-site-name { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-row1-actions { display: flex; align-items: center; gap: 2px; }
+  .topbar-title { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75); padding-left: 30px; }
   .topbar-actions { display: flex; align-items: center; gap: 4px; }
-  .topbar-icon-btn { width: 40px; height: 40px; border: none; background: none; color: rgba(255,255,255,0.85); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+  .topbar-icon-btn { width: 36px; height: 36px; border: none; background: none; color: rgba(255,255,255,0.85); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
   .topbar-icon-btn:active { background: rgba(255,255,255,0.15); }
   /* Bell badge */
   .notif-bell-wrap { position: relative; display: flex; }
@@ -488,7 +491,7 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
     .tab-bar { display: none; }
     .drawer { left: 0 !important; width: 230px; box-shadow: none; }
     .drawer-overlay { display: none !important; }
-    .topbar { left: 230px; padding: 0 20px; }
+    .topbar { left: 230px; padding: 8px 20px; }
     .topbar-menu-btn { display: none; }
     .main { left: 230px; top: var(--top-h); bottom: 0; position: fixed; }
     .content { padding: 20px 24px; }
@@ -694,17 +697,20 @@ if ('serviceWorker' in navigator) {
 
 <!-- Top bar -->
 <header class="topbar">
-  <button class="topbar-menu-btn" onclick="openDrawer()" aria-label="Menu">☰</button>
-  <span class="topbar-title" id="topbar-title">Dashboard</span>
-  <div class="topbar-actions">
-    <span id="site-chip" style="font-size:11px;font-weight:600;background:rgba(255,255,255,0.18);color:#fff;padding:3px 9px;border-radius:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:none;"></span>
-    <div class="notif-bell-wrap">
-      <button class="topbar-icon-btn" onclick="openNotifPanel()" title="Notifications" style="font-size:17px;">🔔</button>
-      <span class="notif-badge" id="notif-badge"></span>
+  <div class="topbar-row1">
+    <button class="topbar-menu-btn" onclick="openDrawer()" aria-label="Menu">☰</button>
+    <span class="topbar-site-name" id="site-chip">Site</span>
+    <div class="topbar-row1-actions">
+      <button class="topbar-icon-btn" onclick="manualRefresh()" title="Refresh — load latest data from server" style="font-size:16px;">↻</button>
+      <button class="topbar-icon-btn" onclick="confirmLogout()" title="Log out" style="font-size:16px;">⎋</button>
     </div>
-    <button class="topbar-icon-btn" onclick="manualRefresh()" title="Load latest data from server" style="font-size:16px;">↻</button>
-    <button class="topbar-icon-btn" id="user-pill" title="Logged in" onclick="confirmLogout()">👤 <span id="user-pill-name" style="font-size:13px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span></button>
-    <button class="topbar-icon-btn" onclick="navTo('gssetup')" title="Google Sheets"><span class="gs-dot disconnected" id="gs-dot"></span></button>
+  </div>
+  <div class="topbar-row2" id="topbar-title">Dashboard</div>
+  <div class="topbar-actions" style="display:none;">
+    <!-- kept (hidden) so legacy null-checked JS (updateGsStatus, updateNotifBadge) has somewhere to look without erroring -->
+    <span class="notif-badge" id="notif-badge"></span>
+    <span id="user-pill-name"></span>
+    <span class="gs-dot disconnected" id="gs-dot"></span>
   </div>
 </header>
 
@@ -2515,7 +2521,7 @@ function removeItemRow(btn) {
 // step-by-step wizard, so the two UIs don't duplicate sync/notify logic.
 // Returns true on success (caller decides what to do next, e.g. close its
 // own UI), false on validation/save failure (notify() already shown).
-async function submitRequisitionRecord({ date, requestedBy, items, laborItems, remarks }, editId) {
+async function submitRequisitionRecord({ date, requestedBy, items, laborItems, remarks }, editId, redirectPage = 'requisition') {
   if (!requestedBy) { notify('Please fill all required fields.', true); return false; }
   if (!items.length && !laborItems.length) { notify('Add at least one item.', true); return false; }
 
@@ -2537,7 +2543,7 @@ async function submitRequisitionRecord({ date, requestedBy, items, laborItems, r
       gasNotify('sr_submitted', { ..._d, message: _notifMsg('sr_submitted', _d) }); }
   }
   setModalSaving(false);
-  render('requisition');
+  render(redirectPage);
   return true;
 }
 
@@ -2669,7 +2675,6 @@ function wizardGoToDetails() {
 }
 
 async function wizardSubmit() {
-  const date = document.getElementById('wz-date').value;
   const requestedBy = document.getElementById('wz-reqby').value;
   const remarks = document.getElementById('wz-remarks').value;
   const work = document.getElementById('wz-work')?.value || '';
@@ -2680,7 +2685,7 @@ async function wizardSubmit() {
     if (WZ.type === 'material') items.push({ material: i.name, ...row });
     else laborItems.push({ trade: i.name, ...row });
   });
-  const ok = await submitRequisitionRecord({ date, requestedBy, items, laborItems, remarks }, null);
+  const ok = await submitRequisitionRecord({ date: today(), requestedBy, items, laborItems, remarks }, null, 'dashboard');
   if (ok) closeWizard();
 }
 
@@ -2782,7 +2787,6 @@ function wizardRender() {
     const md = APP.masterData;
     const wks = worksForSite();
     body.innerHTML = `
-      <div class="field-group" style="margin-bottom:14px;"><label>Date</label><input type="date" id="wz-date" value="${today()}"></div>
       <div class="field-group" style="margin-bottom:14px;"><label>Requested By</label><select id="wz-reqby"><option value="">Select</option>${selOptions(md.teamMembers,'name','name',APP.currentUser)}</select></div>
       ${wks.length ? `<div class="field-group" style="margin-bottom:14px;"><label>Work (applies to whole request)</label><select id="wz-work"><option value="">Select</option>${selOptions(wks,'name','name','')}</select></div>` : ''}
       <div class="field-group"><label>Remarks</label><textarea id="wz-remarks" placeholder="Any special instructions..."></textarea></div>
