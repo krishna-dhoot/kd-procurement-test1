@@ -1505,6 +1505,7 @@ function renderAdmin() {
       <div class="admin-list-header"><h3>Materials / Items</h3><span>${(md.materials||[]).length} entries</span></div>
       <div style="padding:8px 10px 0;">
         <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('materials')">🖼️ Fetch Images</button>
+        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('materials', true)" title="Re-fetches every item, including ones that already have an image — use this if images are showing broken">🔄 Refetch All</button>
         <span id="img-fetch-progress-materials" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
       </div>
       <div class="admin-item-list">
@@ -1537,6 +1538,7 @@ function renderAdmin() {
       <div class="admin-list-header"><h3>Labor Trades</h3><span>${(md.laborTypes||[]).length} entries</span></div>
       <div style="padding:8px 10px 0;">
         <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('laborTypes')">🖼️ Fetch Images</button>
+        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('laborTypes', true)" title="Re-fetches every item, including ones that already have an image — use this if images are showing broken">🔄 Refetch All</button>
         <span id="img-fetch-progress-laborTypes" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
       </div>
       <div class="admin-item-list">
@@ -1957,7 +1959,11 @@ function fetchItemImage_(query) {
     var file = folder.createFile(blob).setName(query + '.jpg');
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    return { success: true, imageUrl: 'https://drive.google.com/uc?export=view&amp;id=' + file.getId() };
+    // drive.google.com/uc?export=view is unreliable for direct &lt;img&gt; embedding
+    // (Google's anti-hotlinking measures often serve a scan-warning page
+    // instead of the raw image). The dedicated thumbnail endpoint is built
+    // for exactly this and renders reliably inline.
+    return { success: true, imageUrl: 'https://drive.google.com/thumbnail?sz=w400&amp;id=' + file.getId() };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -4596,8 +4602,8 @@ async function fetchImageForItem(query) {
 // Backfills images for whichever materials/laborTypes don't have one yet —
 // sequential (not parallel) so a single slow Apps Script execution doesn't
 // trigger a pile of concurrent Drive uploads, and so progress can be shown.
-async function fetchAllItemImages(collectionKey) {
-  const items = (APP.masterData[collectionKey] || []).filter((i) => !i.imageUrl);
+async function fetchAllItemImages(collectionKey, force = false) {
+  const items = (APP.masterData[collectionKey] || []).filter((i) => force || !i.imageUrl);
   const progressEl = document.getElementById('img-fetch-progress-' + collectionKey);
   if (!items.length) { notify('All items already have images.'); return; }
   let done = 0, failed = 0;
