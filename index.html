@@ -207,6 +207,7 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
 
   /* ══ BOTTOM TAB BAR ══ */
   .tab-bar {
+    display: none; /* new-ux: dashboard + the wizard are the only entry points; full nav still reachable via the ☰ drawer */
     position: fixed; bottom: 0; left: 0; right: 0; height: var(--tab-h);
     background: var(--surface); border-top: 1px solid var(--border);
     display: flex; z-index: 90;
@@ -250,6 +251,82 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
   .btn-icon { padding: 8px; min-width: 40px; justify-content: center; min-height: 40px; }
   .fab { position: fixed; bottom: calc(var(--tab-h) + 16px); right: 16px; width: 56px; height: 56px; border-radius: 50%; background: var(--green); color: #fff; border: none; font-size: 28px; cursor: pointer; box-shadow: 0 4px 16px rgba(15,110,86,0.4); display: flex; align-items: center; justify-content: center; z-index: 80; }
   .fab:active { background: var(--green-dark); transform: scale(0.95); }
+
+  /* ══ NEW-UX: hero New Request button + wizard ══ */
+  .new-req-hero {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 20px; margin-bottom: 16px; border: none; border-radius: 18px; cursor: pointer;
+    background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
+    color: #fff; box-shadow: 0 6px 20px rgba(15,110,86,0.35);
+    transition: transform 0.12s;
+  }
+  .new-req-hero:active { transform: scale(0.97); }
+  .new-req-hero-plus { font-size: 28px; font-weight: 700; line-height: 1; }
+  .new-req-hero-label { font-size: 18px; font-weight: 700; }
+
+  .wizard-overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 400;
+    display: flex; flex-direction: column;
+    transform: translateY(100%); transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+  }
+  .wizard-overlay.open { transform: translateY(0); }
+  .wizard-hdr {
+    flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+    background: var(--green-dark); color: #fff;
+  }
+  .wizard-hdr-back { background: rgba(255,255,255,0.15); border: none; color: #fff; width: 36px; height: 36px; border-radius: 10px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .wizard-hdr-title { font-size: 16px; font-weight: 700; flex: 1; }
+  .wizard-hdr-close { background: rgba(255,255,255,0.15); border: none; color: #fff; width: 36px; height: 36px; border-radius: 10px; font-size: 16px; cursor: pointer; flex-shrink: 0; }
+  .wizard-steps { display: flex; gap: 5px; padding: 0 16px 12px; background: var(--green-dark); }
+  .wizard-step-dot { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.25); }
+  .wizard-step-dot.done, .wizard-step-dot.current { background: #fff; }
+  .wizard-body { flex: 1; overflow-y: auto; padding: 18px 16px calc(100px + env(safe-area-inset-bottom, 0px)); }
+
+  .wizard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .wizard-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    padding: 22px 10px; border-radius: 16px; border: 2px solid var(--border); background: var(--surface);
+    cursor: pointer; text-align: center; transition: all 0.12s; min-height: 100px;
+  }
+  .wizard-card:active { transform: scale(0.96); }
+  .wizard-card.big { padding: 36px 16px; min-height: 150px; }
+  .wizard-card.big .wizard-card-icon { font-size: 40px; }
+  .wizard-card-icon { font-size: 26px; }
+  .wizard-card-label { font-size: 14px; font-weight: 600; color: var(--text); }
+  .wizard-card.selected { border-color: var(--green); background: var(--green-light); }
+  .wizard-card.selected .wizard-card-label { color: var(--green-dark); }
+  .wizard-card-check { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+  .wizard-card-wrap { position: relative; }
+
+  .wizard-selected-zone {
+    position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border);
+    margin: 0 -16px -100px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .wizard-selected-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+  .wizard-selected-chips { display: flex; flex-wrap: wrap; gap: 8px; max-height: 110px; overflow-y: auto; }
+  .wizard-chip {
+    display: flex; align-items: center; gap: 6px; background: var(--green-light); color: var(--green-dark);
+    border-radius: 20px; padding: 7px 8px 7px 14px; font-size: 13px; font-weight: 600;
+  }
+  .wizard-chip-x { width: 20px; height: 20px; border-radius: 50%; background: rgba(15,110,86,0.15); border: none; color: var(--green-dark); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .wizard-empty-hint { font-size: 13px; color: var(--text-3); text-align: center; padding: 30px 10px; }
+
+  .wizard-footer {
+    flex-shrink: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--surface);
+    border-top: 1px solid var(--border); display: flex; gap: 10px;
+  }
+  .wizard-btn-primary {
+    flex: 1; padding: 14px; border: none; border-radius: 12px; background: var(--green); color: #fff;
+    font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+  .wizard-btn-primary:disabled { background: var(--gray-light); color: var(--text-3); cursor: default; }
+  .wizard-qty-row { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1.5px solid var(--border); border-radius: 12px; margin-bottom: 10px; }
+  .wizard-qty-info { flex: 1; }
+  .wizard-qty-name { font-size: 14px; font-weight: 600; }
+  .wizard-qty-unit { font-size: 11px; color: var(--text-3); }
+  .wizard-qty-input { width: 90px; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; text-align: center; }
 
   /* ══ STAT CARDS ══ */
   .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
@@ -718,6 +795,18 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- New Request wizard (new-ux) -->
+<div class="wizard-overlay" id="wizard-overlay">
+  <div class="wizard-hdr">
+    <button class="wizard-hdr-back" id="wizard-back-btn" onclick="wizardBack()" style="visibility:hidden;">←</button>
+    <span class="wizard-hdr-title" id="wizard-title">New Request</span>
+    <button class="wizard-hdr-close" onclick="closeWizard()">✕</button>
+  </div>
+  <div class="wizard-steps" id="wizard-steps"></div>
+  <div class="wizard-body" id="wizard-body"></div>
+  <div class="wizard-footer" id="wizard-footer" style="display:none;"></div>
+</div>
+
 <script>
 // ══════════════════════════════════════════
 //  HARDCODED CONFIG  ← edit these in the file before deploying
@@ -1132,6 +1221,10 @@ function renderDashboard() {
 
   return `
     <div>
+      <button class="new-req-hero" onclick="openWizard()">
+        <span class="new-req-hero-plus">＋</span>
+        <span class="new-req-hero-label">New Request</span>
+      </button>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-label">Pending Approval</div><div class="stat-value amber">${pendingApproval}</div></div>
         <div class="stat-card"><div class="stat-label">Pending Order</div><div class="stat-value red">${pendingOrder}</div></div>
@@ -2409,13 +2502,40 @@ function removeItemRow(btn) {
   if (tbody.rows.length > 1) row.remove();
 }
 
+// Shared save core — used by both the classic modal form and the new
+// step-by-step wizard, so the two UIs don't duplicate sync/notify logic.
+// Returns true on success (caller decides what to do next, e.g. close its
+// own UI), false on validation/save failure (notify() already shown).
+async function submitRequisitionRecord({ date, requestedBy, items, laborItems, remarks }, editId) {
+  if (!requestedBy) { notify('Please fill all required fields.', true); return false; }
+  if (!items.length && !laborItems.length) { notify('Add at least one item.', true); return false; }
+
+  setModalSaving(true);
+  if (editId) {
+    const r = APP.records.requisitions.find(x => x.id === editId);
+    if (!r) { setModalSaving(false); return false; }
+    Object.assign(r, { date, requestedBy, items, laborItems, remarks });
+    const ok = await syncToSheets('Requisitions', r);
+    if (!ok) { setModalSaving(false); notify('Save failed — check connection.', true); return false; }
+    notify(`Requisition ${r.id} updated`);
+  } else {
+    const rec = { id: nextId('SR'), date, requestedBy, site: APP.currentSite, items, laborItems, remarks, status: 'pending', createdAt: new Date().toISOString() };
+    APP.records.requisitions.push(rec);
+    const ok = await syncToSheets('Requisitions', rec);
+    if (!ok) { APP.records.requisitions.pop(); setModalSaving(false); notify('Save failed — check connection.', true); return false; }
+    notify(`Requisition ${rec.id} created`);
+    { const _d = { id: rec.id, site: rec.site, by: rec.requestedBy, items: rec.items, laborItems: rec.laborItems };
+      gasNotify('sr_submitted', { ..._d, message: _notifMsg('sr_submitted', _d) }); }
+  }
+  setModalSaving(false);
+  render('requisition');
+  return true;
+}
+
 async function saveRequisition(id) {
   const date        = document.getElementById('f-date').value;
   const requestedBy = document.getElementById('f-reqby').value;
   const remarks     = document.getElementById('f-remarks').value;
-
-  if (!requestedBy) { notify('Please fill all required fields.', true); return; }
-
   const type = formItemType();
   const items = [], laborItems = [];
   document.querySelectorAll('#req-items-body tr').forEach(row => {
@@ -2427,26 +2547,226 @@ async function saveRequisition(id) {
     if (type === 'material') items.push({ material: desc, qty, unit, work });
     else                     laborItems.push({ trade: desc, qty, unit, work });
   });
-  if (!items.length && !laborItems.length) { notify('Add at least one item.', true); return; }
+  const ok = await submitRequisitionRecord({ date, requestedBy, items, laborItems, remarks }, id);
+  if (ok) closeModal();
+}
 
-  setModalSaving(true);
-  if (id) {
-    const r = APP.records.requisitions.find(x => x.id === id);
-    if (!r) return;
-    Object.assign(r, { date, requestedBy, items, laborItems, remarks });
-    const ok = await syncToSheets('Requisitions', r);
-    if (!ok) { setModalSaving(false); notify('Save failed — check connection.', true); return; }
-    closeModal(); notify(`Requisition ${r.id} updated`);
+// ══════════════════════════════════════════
+//  NEW-UX: STEP-BY-STEP REQUEST WIZARD
+// ══════════════════════════════════════════
+const WIZARD_STEPS = ['type', 'category', 'items', 'qty', 'details'];
+const WIZARD_CATEGORY_ICONS = {
+  Steel: '🔩', Cement: '🧱', Electrical: '⚡', 'Electrical Material': '⚡',
+  Plumbing: '🚰', 'Plumbing Material': '🚰', Hardware: '🔧', Aggregates: '⛰️',
+  Bricks: '🟫', 'Painting Material': '🎨', 'Flooring Material': '🟦',
+  'Construction Chemicals': '🧪',
+};
+
+let WZ = null;
+
+function wizardReset() {
+  WZ = { step: 'type', type: null, category: null, selected: [], qty: {}, work: {} };
+}
+
+function openWizard() {
+  wizardReset();
+  document.getElementById('wizard-overlay').classList.add('open');
+  wizardRender();
+}
+
+function closeWizard() {
+  document.getElementById('wizard-overlay').classList.remove('open');
+}
+
+function wizardItemPool() {
+  const md = APP.masterData;
+  return WZ.type === 'material' ? (md.materials || []) : (md.laborTypes || []);
+}
+
+function wizardCategories() {
+  return [...new Set(wizardItemPool().map((i) => i.category).filter(Boolean))].sort();
+}
+
+function wizardSafeId(name) {
+  return name.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function wizardBack() {
+  if (WZ.step === 'category') { WZ.step = 'type'; WZ.type = null; }
+  else if (WZ.step === 'items') { WZ.step = wizardCategories().length ? 'category' : 'type'; WZ.category = null; }
+  else if (WZ.step === 'qty') { WZ.step = 'items'; }
+  else if (WZ.step === 'details') { WZ.step = 'qty'; }
+  wizardRender();
+}
+
+function wizardSelectType(type) {
+  WZ.type = type;
+  WZ.step = wizardCategories().length ? 'category' : 'items';
+  wizardRender();
+}
+
+function wizardSelectCategory(cat) {
+  WZ.category = cat;
+  WZ.step = 'items';
+  wizardRender();
+}
+
+function wizardToggleItem(name) {
+  const idx = WZ.selected.findIndex((i) => i.name === name);
+  if (idx >= 0) {
+    WZ.selected.splice(idx, 1);
+    delete WZ.qty[name]; delete WZ.work[name];
   } else {
-    const rec = { id: nextId('SR'), date, requestedBy, site: APP.currentSite, items, laborItems, remarks, status: 'pending', createdAt: new Date().toISOString() };
-    APP.records.requisitions.push(rec);
-    const ok = await syncToSheets('Requisitions', rec);
-    if (!ok) { APP.records.requisitions.pop(); setModalSaving(false); notify('Save failed — check connection.', true); return; }
-    closeModal(); notify(`Requisition ${rec.id} created`);
-    { const _d = { id: rec.id, site: rec.site, by: rec.requestedBy, items: rec.items, laborItems: rec.laborItems };
-      gasNotify('sr_submitted', { ..._d, message: _notifMsg('sr_submitted', _d) }); }
+    const item = wizardItemPool().find((i) => i.name === name);
+    WZ.selected.push({ name, unit: item?.unit || '', category: item?.category || '' });
   }
-  render('requisition');
+  wizardRender();
+}
+
+function wizardRemoveItem(name) {
+  WZ.selected = WZ.selected.filter((i) => i.name !== name);
+  delete WZ.qty[name]; delete WZ.work[name];
+  wizardRender();
+}
+
+function wizardGoToQty() {
+  if (!WZ.selected.length) { notify('Select at least one item.', true); return; }
+  WZ.step = 'qty';
+  wizardRender();
+}
+
+function wizardGoToDetails() {
+  WZ.selected.forEach((i) => {
+    const el = document.getElementById('wz-qty-' + wizardSafeId(i.name));
+    if (el) WZ.qty[i.name] = el.value;
+    const workEl = document.getElementById('wz-work-' + wizardSafeId(i.name));
+    if (workEl) WZ.work[i.name] = workEl.value;
+  });
+  const missing = WZ.selected.some((i) => !WZ.qty[i.name]);
+  if (missing) { notify('Enter quantity for all selected items.', true); return; }
+  WZ.step = 'details';
+  wizardRender();
+}
+
+async function wizardSubmit() {
+  const date = document.getElementById('wz-date').value;
+  const requestedBy = document.getElementById('wz-reqby').value;
+  const remarks = document.getElementById('wz-remarks').value;
+  if (!requestedBy) { notify('Please select who is requesting.', true); return; }
+  const items = [], laborItems = [];
+  WZ.selected.forEach((i) => {
+    const row = { qty: WZ.qty[i.name], unit: i.unit, work: WZ.work[i.name] || '' };
+    if (WZ.type === 'material') items.push({ material: i.name, ...row });
+    else laborItems.push({ trade: i.name, ...row });
+  });
+  const ok = await submitRequisitionRecord({ date, requestedBy, items, laborItems, remarks }, null);
+  if (ok) closeWizard();
+}
+
+// Selected-items chip strip — shown during the items step so picks can be
+// reviewed/removed without leaving the grid. Removing is a tap on the chip's
+// ✕ rather than a drag gesture: real drag-and-drop is fiddly and unreliable
+// on touch without a dedicated library, while tap-to-remove is just as fast
+// and works consistently everywhere.
+function wizardSelectedZoneHtml() {
+  if (!WZ.selected.length) {
+    return `<div class="wizard-selected-zone"><div class="wizard-empty-hint">Tap items above to add them here</div></div>`;
+  }
+  return `
+    <div class="wizard-selected-zone">
+      <div class="wizard-selected-label">${WZ.selected.length} selected</div>
+      <div class="wizard-selected-chips">
+        ${WZ.selected.map((i) => `
+          <span class="wizard-chip">${i.name}<button class="wizard-chip-x" onclick="event.stopPropagation();wizardRemoveItem('${i.name.replace(/'/g, "\\'")}')">✕</button></span>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
+function wizardRender() {
+  const idx = WIZARD_STEPS.indexOf(WZ.step);
+  document.getElementById('wizard-back-btn').style.visibility = idx > 0 ? 'visible' : 'hidden';
+  document.getElementById('wizard-steps').innerHTML = WIZARD_STEPS.map((s, i) =>
+    `<div class="wizard-step-dot ${i < idx ? 'done' : i === idx ? 'current' : ''}"></div>`
+  ).join('');
+
+  const titles = { type: 'What do you need?', category: 'Pick a category', items: 'Select items', qty: 'How much?', details: 'A few last details' };
+  document.getElementById('wizard-title').textContent = titles[WZ.step];
+
+  const body = document.getElementById('wizard-body');
+  const footer = document.getElementById('wizard-footer');
+
+  if (WZ.step === 'type') {
+    body.innerHTML = `
+      <div class="wizard-grid">
+        <div class="wizard-card big" onclick="wizardSelectType('material')">
+          <div class="wizard-card-icon">📦</div>
+          <div class="wizard-card-label">Material</div>
+        </div>
+        <div class="wizard-card big" onclick="wizardSelectType('labor')">
+          <div class="wizard-card-icon">👷</div>
+          <div class="wizard-card-label">Labor</div>
+        </div>
+      </div>`;
+    footer.style.display = 'none';
+
+  } else if (WZ.step === 'category') {
+    const cats = wizardCategories();
+    body.innerHTML = `
+      <div class="wizard-grid" style="grid-template-columns:repeat(3,1fr);">
+        ${cats.map((c) => `
+          <div class="wizard-card" onclick="wizardSelectCategory('${c.replace(/'/g, "\\'")}')">
+            <div class="wizard-card-icon">${WIZARD_CATEGORY_ICONS[c] || '📁'}</div>
+            <div class="wizard-card-label">${c}</div>
+          </div>`).join('')}
+      </div>`;
+    footer.style.display = 'none';
+
+  } else if (WZ.step === 'items') {
+    const pool = wizardItemPool().filter((i) => i.category === WZ.category);
+    const selectedNames = new Set(WZ.selected.map((i) => i.name));
+    body.innerHTML = `
+      <div class="wizard-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+        ${pool.map((i) => `
+          <div class="wizard-card-wrap">
+            <div class="wizard-card ${selectedNames.has(i.name) ? 'selected' : ''}" onclick="wizardToggleItem('${i.name.replace(/'/g, "\\'")}')">
+              ${selectedNames.has(i.name) ? '<div class="wizard-card-check">✓</div>' : ''}
+              <div class="wizard-card-icon">${WZ.type === 'material' ? '📦' : '👷'}</div>
+              <div class="wizard-card-label">${i.name}</div>
+            </div>
+          </div>`).join('') || '<div class="wizard-empty-hint">No items in this category yet</div>'}
+      </div>
+      ${wizardSelectedZoneHtml()}`;
+    footer.style.display = 'flex';
+    footer.innerHTML = `<button class="wizard-btn-primary" ${WZ.selected.length ? '' : 'disabled'} onclick="wizardGoToQty()">Continue (${WZ.selected.length})</button>`;
+
+  } else if (WZ.step === 'qty') {
+    const wks = worksForSite();
+    body.innerHTML = WZ.selected.map((i) => `
+      <div class="wizard-qty-row">
+        <div class="wizard-qty-info">
+          <div class="wizard-qty-name">${i.name}</div>
+          <div class="wizard-qty-unit">${i.unit || ''}${wks.length ? '' : ''}</div>
+          ${wks.length ? `<select id="wz-work-${wizardSafeId(i.name)}" style="margin-top:6px;width:100%;padding:6px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;"><option value="">Work (optional)</option>${selOptions(wks,'name','name',WZ.work[i.name]||'')}</select>` : ''}
+        </div>
+        <input type="number" inputmode="decimal" class="wizard-qty-input" id="wz-qty-${wizardSafeId(i.name)}" placeholder="0" value="${WZ.qty[i.name] || ''}">
+      </div>`).join('');
+    footer.style.display = 'flex';
+    footer.innerHTML = `<button class="wizard-btn-primary" onclick="wizardGoToDetails()">Continue</button>`;
+
+  } else if (WZ.step === 'details') {
+    const md = APP.masterData;
+    body.innerHTML = `
+      <div class="field-group" style="margin-bottom:14px;"><label>Date</label><input type="date" id="wz-date" value="${today()}"></div>
+      <div class="field-group" style="margin-bottom:14px;"><label>Requested By</label><select id="wz-reqby"><option value="">Select</option>${selOptions(md.teamMembers,'name','name',APP.currentUser)}</select></div>
+      <div class="field-group"><label>Remarks</label><textarea id="wz-remarks" placeholder="Any special instructions..."></textarea></div>
+      <div class="section-divider" style="margin-top:18px;">Summary</div>
+      <div class="wizard-selected-chips" style="margin-top:10px;">
+        ${WZ.selected.map((i) => `<span class="wizard-chip">${i.name}: ${WZ.qty[i.name]}${i.unit ? ' ' + i.unit : ''}</span>`).join('')}
+      </div>`;
+    footer.style.display = 'flex';
+    footer.innerHTML = `<button class="wizard-btn-primary" onclick="wizardSubmit()">✓ Submit Request</button>`;
+  }
 }
 
 // ── Work Modal ──
