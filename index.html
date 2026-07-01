@@ -1506,6 +1506,10 @@ function renderAdmin() {
   const materialsCard = `
     <div class="admin-list-card" id="admin-card-materials">
       <div class="admin-list-header"><h3>Materials / Items</h3><span>${(md.materials||[]).length} entries</span></div>
+      <div style="padding:8px 10px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="aiGenerateImages('materials')">🤖 AI Generate Thumbnails</button>
+        <span id="ai-img-progress-materials" style="font-size:11px;color:var(--text-3);"></span>
+      </div>
       <div class="admin-item-list">
         ${(md.materials||[]).map(m=>`
           <div class="admin-item">
@@ -1530,6 +1534,10 @@ function renderAdmin() {
   const laborCard = `
     <div class="admin-list-card" id="admin-card-laborTypes">
       <div class="admin-list-header"><h3>Labor Trades</h3><span>${(md.laborTypes||[]).length} entries</span></div>
+      <div style="padding:8px 10px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="aiGenerateImages('laborTypes')">🤖 AI Generate Thumbnails</button>
+        <span id="ai-img-progress-laborTypes" style="font-size:11px;color:var(--text-3);"></span>
+      </div>
       <div class="admin-item-list">
         ${(md.laborTypes||[]).map(l=>`
           <div class="admin-item">
@@ -4413,9 +4421,12 @@ function editAdminItem(collection, id) {
           </select>
         </label>
         <label style="font-size:13px;font-weight:600;">Thumbnail Image URL <span style="font-weight:400;color:var(--text-3);">(optional)</span>
-          <input id="edit-f3" value="${item.imageUrl||''}" placeholder="https://…" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+          <div style="display:flex;gap:6px;margin-top:4px;">
+            <input id="edit-f3" value="${item.imageUrl||''}" placeholder="https://… or use AI Generate →" style="flex:1;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+            <button class="btn btn-secondary btn-sm" style="white-space:nowrap;" onclick="aiGenerateSingle('materials','${item.id}','${item.name.replace(/'/g,"\\'")}')">🤖 AI</button>
+          </div>
         </label>
-        ${item.imageUrl ? `<img src="${item.imageUrl}" alt="" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">` : ''}
+        <img id="edit-thumb-preview" src="${item.imageUrl||''}" alt="" style="width:64px;height:64px;border-radius:8px;object-fit:cover;display:${item.imageUrl?'block':'none'};">
       </div>`;
 
   } else if (collection === 'laborTypes') {
@@ -4436,9 +4447,12 @@ function editAdminItem(collection, id) {
           </select>
         </label>
         <label style="font-size:13px;font-weight:600;">Thumbnail Image URL <span style="font-weight:400;color:var(--text-3);">(optional)</span>
-          <input id="edit-f3" value="${item.imageUrl||''}" placeholder="https://…" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+          <div style="display:flex;gap:6px;margin-top:4px;">
+            <input id="edit-f3" value="${item.imageUrl||''}" placeholder="https://… or use AI Generate →" style="flex:1;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+            <button class="btn btn-secondary btn-sm" style="white-space:nowrap;" onclick="aiGenerateSingle('laborTypes','${item.id}','${item.name.replace(/'/g,"\\'")}')">🤖 AI</button>
+          </div>
         </label>
-        ${item.imageUrl ? `<img src="${item.imageUrl}" alt="" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">` : ''}
+        <img id="edit-thumb-preview" src="${item.imageUrl||''}" alt="" style="width:64px;height:64px;border-radius:8px;object-fit:cover;display:${item.imageUrl?'block':'none'};">
       </div>`;
 
   } else if (collection === 'sites') {
@@ -4681,6 +4695,47 @@ function setSiteLocation(id) {
     (err) => notify('Could not get location: ' + err.message, true),
     { enableHighAccuracy: true, timeout: 15000 }
   );
+}
+
+// ── AI thumbnail generation via Pollinations.ai (free, no API key) ──
+// Builds a deterministic image URL from the item name. The seed is derived
+// from the name so the same item always gets the same image across devices.
+function pollinationsUrl(name, context) {
+  const prompt = encodeURIComponent(
+    `${name} ${context}, single object, flat lay, clean white background, product photo, high quality`
+  );
+  // Simple numeric seed from item name for consistency
+  const seed = [...name].reduce((s, c) => (s * 31 + c.charCodeAt(0)) & 0xfffff, 0);
+  return `https://image.pollinations.ai/prompt/${prompt}?width=200&height=200&seed=${seed}&nologo=true`;
+}
+
+function aiGenerateSingle(collectionKey, id, name) {
+  const context = collectionKey === 'laborTypes' ? 'construction labor trade worker' : 'construction building material';
+  const url = pollinationsUrl(name, context);
+  const input = document.getElementById('edit-f3');
+  const preview = document.getElementById('edit-thumb-preview');
+  if (input) input.value = url;
+  if (preview) { preview.src = url; preview.style.display = 'block'; }
+}
+
+async function aiGenerateImages(collectionKey) {
+  const items = (APP.masterData[collectionKey] || []).filter(i => !i.imageUrl);
+  const progressEl = document.getElementById('ai-img-progress-' + collectionKey);
+  if (!items.length) { notify('All items already have thumbnails.'); return; }
+  const context = collectionKey === 'laborTypes' ? 'construction labor trade worker' : 'construction building material';
+  let done = 0;
+  for (const item of items) {
+    if (progressEl) progressEl.textContent = `Generating ${done + 1}/${items.length}…`;
+    item.imageUrl = pollinationsUrl(item.name, context);
+    done++;
+    // Small pause so the browser doesn't fire 40 concurrent image loads
+    await new Promise(r => setTimeout(r, 60));
+  }
+  saveLocal();
+  syncMasterData();
+  if (progressEl) progressEl.textContent = '';
+  notify(`${done} thumbnail${done === 1 ? '' : 's'} generated`);
+  render('admin');
 }
 
 // ══════════════════════════════════════════
