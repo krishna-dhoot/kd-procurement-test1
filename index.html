@@ -1443,6 +1443,7 @@ function renderAdmin() {
               title="${item.pinHash ? 'PIN set — click to change' : 'No PIN set'}">
               ${item.pinHash ? '🔑 Change PIN' : '⚠ Set PIN'}
             </button>
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="editAdminItem('teamMembers','${item.id}')" title="Edit">✏️</button>
             <button class="btn btn-danger btn-sm btn-icon" onclick="removeAdminItem('teamMembers','${item.id}')">✕</button>
           </div>`).join('') || '<div style="padding:10px;font-size:12px;color:var(--text-3);">No members yet</div>'}
       </div>
@@ -1464,6 +1465,7 @@ function renderAdmin() {
         ${cats.map(c=>`
           <div class="admin-item">
             <div class="admin-item-name">${c.name}</div>
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="editAdminItem('categories','${c.id}')" title="Edit">✏️</button>
             <button class="btn btn-danger btn-sm btn-icon" onclick="removeAdminItem('categories','${c.id}')">✕</button>
           </div>`).join('') || '<div style="padding:10px;font-size:12px;color:var(--text-3);">No categories yet — add Steel, Cement, RCC Work…</div>'}
       </div>
@@ -1483,6 +1485,7 @@ function renderAdmin() {
           return `<div class="admin-item" style="flex-direction:column;align-items:stretch;gap:5px;padding:8px 10px;">
             <div style="display:flex;align-items:center;gap:8px;">
               <div class="admin-item-name" style="flex:1;">${v.name}</div>
+              <button class="btn btn-secondary btn-sm btn-icon" onclick="editAdminItem('vendors','${v.id}')" title="Edit">✏️</button>
               <button class="btn btn-danger btn-sm btn-icon" onclick="removeAdminItem('vendors','${v.id}')">✕</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:4px;">
@@ -1503,24 +1506,15 @@ function renderAdmin() {
   const materialsCard = `
     <div class="admin-list-card" id="admin-card-materials">
       <div class="admin-list-header"><h3>Materials / Items</h3><span>${(md.materials||[]).length} entries</span></div>
-      <div style="padding:8px 10px 0;">
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('materials')">🖼️ Fetch Images</button>
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('materials', true)" title="Re-fetches every item, including ones that already have an image — use this if images are showing broken">🔄 Refetch All</button>
-        <span id="img-fetch-progress-materials" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
-      </div>
       <div class="admin-item-list">
         ${(md.materials||[]).map(m=>`
           <div class="admin-item">
-            ${m.imageUrl ? `<img src="${m.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
+            ${m.imageUrl ? `<img src="${m.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : '<div style="width:32px;height:32px;border-radius:6px;background:var(--bg);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-3);">📦</div>'}
             <div style="flex:1;min-width:0;">
               <div class="admin-item-name">${m.name}</div>
-              <div class="admin-item-sub">${m.unit||''}</div>
+              <div class="admin-item-sub">${[m.unit, m.category].filter(Boolean).join(' · ')}</div>
             </div>
-            <select style="font-size:11px;padding:2px 4px;max-width:110px;border:1px solid var(--border);border-radius:5px;color:${m.category?'var(--text)':'var(--text-3)'};"
-                    onchange="setMaterialCat('${m.id}',this.value)" title="Category">
-              <option value="">— category —</option>
-              ${cats.map(c=>`<option value="${c.name}" ${m.category===c.name?'selected':''}>${c.name}</option>`).join('')}
-            </select>
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="editAdminItem('materials','${m.id}')" title="Edit">✏️</button>
             <button class="btn btn-danger btn-sm btn-icon" onclick="removeAdminItem('materials','${m.id}')">✕</button>
           </div>`).join('') || '<div style="padding:10px;font-size:12px;color:var(--text-3);">No items yet</div>'}
       </div>
@@ -1536,24 +1530,15 @@ function renderAdmin() {
   const laborCard = `
     <div class="admin-list-card" id="admin-card-laborTypes">
       <div class="admin-list-header"><h3>Labor Trades</h3><span>${(md.laborTypes||[]).length} entries</span></div>
-      <div style="padding:8px 10px 0;">
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('laborTypes')">🖼️ Fetch Images</button>
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('laborTypes', true)" title="Re-fetches every item, including ones that already have an image — use this if images are showing broken">🔄 Refetch All</button>
-        <span id="img-fetch-progress-laborTypes" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
-      </div>
       <div class="admin-item-list">
         ${(md.laborTypes||[]).map(l=>`
           <div class="admin-item">
-            ${l.imageUrl ? `<img src="${l.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
+            ${l.imageUrl ? `<img src="${l.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : '<div style="width:32px;height:32px;border-radius:6px;background:var(--bg);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-3);">👷</div>'}
             <div style="flex:1;min-width:0;">
               <div class="admin-item-name">${l.name}</div>
-              <div class="admin-item-sub">${l.unit||''}</div>
+              <div class="admin-item-sub">${[l.unit, l.category].filter(Boolean).join(' · ')}</div>
             </div>
-            <select style="font-size:11px;padding:2px 4px;max-width:110px;border:1px solid var(--border);border-radius:5px;color:${l.category?'var(--text)':'var(--text-3)'};"
-                    onchange="setLaborCat('${l.id}',this.value)" title="Category">
-              <option value="">— category —</option>
-              ${cats.map(c=>`<option value="${c.name}" ${l.category===c.name?'selected':''}>${c.name}</option>`).join('')}
-            </select>
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="editAdminItem('laborTypes','${l.id}')" title="Edit">✏️</button>
             <button class="btn btn-danger btn-sm btn-icon" onclick="removeAdminItem('laborTypes','${l.id}')">✕</button>
           </div>`).join('') || '<div style="padding:10px;font-size:12px;color:var(--text-3);">No trades yet</div>'}
       </div>
@@ -1577,6 +1562,7 @@ function renderAdmin() {
           <div class="admin-item">
             <div class="admin-item-name">${item.name}${l.key==='sites' ? `<div style="font-size:11px;color:${item.lat?'var(--green-dark)':'var(--amber)'};margin-top:2px;">📍 ${item.lat ? `Set (±geofence ${SITE_GEOFENCE_RADIUS_M}m)` : 'Not set — geofence check disabled for this site'}</div>` : ''}</div>
             ${l.key==='sites' ? `<button class="btn btn-secondary btn-sm" onclick="setSiteLocation('${item.id}')">📍 ${item.lat?'Update':'Set'} Location</button>` : ''}
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="editAdminItem('${l.key}','${item.id}')" title="Edit">✏️</button>
             <button class="btn btn-danger btn-sm btn-icon" onclick="removeAdminItem('${l.key}','${item.id}')">✕</button>
           </div>`).join('') || '<div style="padding:10px;font-size:12px;color:var(--text-3);">No items yet</div>'}
       </div>
@@ -1921,7 +1907,6 @@ function renderGsSetup() {
             <div>4. Set <em>Execute as</em>: <strong>Me</strong> &nbsp;|&nbsp; <em>Who has access</em>: <strong>Anyone</strong></div>
             <div>5. Copy the <strong>Web App URL</strong> and paste it here</div>
             <div>6. In the script, paste your OneSignal <strong>REST API Key</strong> (OneSignal dashboard → Settings → Keys &amp; IDs) into <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">ONESIGNAL_REST_API_KEY</code></div>
-            <div>7. Paste your <strong>Pexels API Key</strong> (pexels.com/api) into <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">PEXELS_API_KEY</code></div>
           </div>
         </div>
 
@@ -1930,44 +1915,6 @@ function renderGsSetup() {
           <pre style="margin:0;padding:14px;font-size:11px;font-family:'DM Mono',monospace;background:var(--surface);overflow-x:auto;color:var(--text);line-height:1.6;">// ── OneSignal config (fill this in) ───────────────────────────
 var ONESIGNAL_APP_ID       = 'db6beb30-8bc6-44fc-8dee-833e0ace7746';
 var ONESIGNAL_REST_API_KEY = 'YOUR_ONESIGNAL_REST_API_KEY_HERE'; // OneSignal dashboard → Settings → Keys &amp; IDs
-
-// ── Pexels config (free stock-photo search, fill this in) ─────
-var PEXELS_API_KEY = 'YOUR_PEXELS_API_KEY_HERE'; // pexels.com/api
-
-// Searches Pexels for a representative photo of an item name, downloads
-// it, and saves it to Drive so the app has a stable URL to use — done
-// server-side (not in the browser) purely to avoid CORS, since the
-// browser can't read cross-origin image bytes from pexels.com directly.
-function fetchItemImage_(query) {
-  try {
-    if (!PEXELS_API_KEY || PEXELS_API_KEY === 'YOUR_PEXELS_API_KEY_HERE') {
-      return { success: false, error: 'PEXELS_API_KEY not set in Apps Script' };
-    }
-    var searchRes = UrlFetchApp.fetch(
-      'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=1',
-      { headers: { Authorization: PEXELS_API_KEY }, muteHttpExceptions: true }
-    );
-    var searchData = JSON.parse(searchRes.getContentText());
-    var photo = searchData.photos &amp;&amp; searchData.photos[0];
-    if (!photo) return { success: false, error: 'No matching stock photo found' };
-
-    var imgRes = UrlFetchApp.fetch(photo.src.medium, { muteHttpExceptions: true });
-    var blob = imgRes.getBlob();
-
-    var folders = DriveApp.getFoldersByName('Procurement Item Images');
-    var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('Procurement Item Images');
-    var file = folder.createFile(blob).setName(query + '.jpg');
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    // drive.google.com/uc?export=view is unreliable for direct &lt;img&gt; embedding
-    // (Google's anti-hotlinking measures often serve a scan-warning page
-    // instead of the raw image). The dedicated thumbnail endpoint is built
-    // for exactly this and renders reliably inline.
-    return { success: true, imageUrl: 'https://drive.google.com/thumbnail?sz=w400&amp;id=' + file.getId() };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
 
 // ── Notification helpers ──────────────────────────────────────
 function sendOneSignal_(title, msg) {
@@ -2020,14 +1967,6 @@ function doPost(e) {
     handleNotify_(data.type, data.data || {});
     return ContentService
       .createTextOutput(JSON.stringify({success:true}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // FETCH ITEM IMAGE — search Pexels, save to Drive, return the URL
-  if (data.action === 'fetchItemImage') {
-    var imgResult = fetchItemImage_(data.query);
-    return ContentService
-      .createTextOutput(JSON.stringify(imgResult))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -4420,6 +4359,158 @@ function addLaborType() {
   render('admin');
 }
 
+function editAdminItem(collection, id) {
+  const md = APP.masterData;
+  const cats = (md.categories || []).map(c => c.name);
+  const catOptHtml = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  let item, bodyHtml;
+
+  if (collection === 'teamMembers') {
+    item = (md.teamMembers || []).find(x => x.id === id);
+    if (!item) return;
+    bodyHtml = `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <label style="font-size:13px;font-weight:600;">Name
+          <input id="edit-f0" value="${item.name||''}" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+        <label style="font-size:13px;font-weight:600;">Role
+          <input id="edit-f1" value="${item.role||''}" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+      </div>`;
+
+  } else if (collection === 'categories') {
+    item = (md.categories || []).find(x => x.id === id);
+    if (!item) return;
+    bodyHtml = `
+      <label style="font-size:13px;font-weight:600;">Category Name
+        <input id="edit-f0" value="${item.name||''}" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+      </label>`;
+
+  } else if (collection === 'vendors') {
+    item = (md.vendors || []).find(x => x.id === id);
+    if (!item) return;
+    bodyHtml = `
+      <label style="font-size:13px;font-weight:600;">Vendor Name
+        <input id="edit-f0" value="${item.name||''}" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+      </label>`;
+
+  } else if (collection === 'materials') {
+    item = (md.materials || []).find(x => x.id === id);
+    if (!item) return;
+    bodyHtml = `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <label style="font-size:13px;font-weight:600;">Item Name
+          <input id="edit-f0" value="${item.name||''}" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+        <label style="font-size:13px;font-weight:600;">Unit
+          <input id="edit-f1" value="${item.unit||''}" placeholder="e.g. kg, bags, sqft" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+        <label style="font-size:13px;font-weight:600;">Category
+          <select id="edit-f2" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+            <option value="">— none —</option>
+            ${cats.map(c=>`<option value="${c}" ${item.category===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </label>
+        <label style="font-size:13px;font-weight:600;">Thumbnail Image URL <span style="font-weight:400;color:var(--text-3);">(optional)</span>
+          <input id="edit-f3" value="${item.imageUrl||''}" placeholder="https://…" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+        ${item.imageUrl ? `<img src="${item.imageUrl}" alt="" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">` : ''}
+      </div>`;
+
+  } else if (collection === 'laborTypes') {
+    item = (md.laborTypes || []).find(x => x.id === id);
+    if (!item) return;
+    bodyHtml = `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <label style="font-size:13px;font-weight:600;">Trade Name
+          <input id="edit-f0" value="${item.name||''}" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+        <label style="font-size:13px;font-weight:600;">Unit
+          <input id="edit-f1" value="${item.unit||''}" placeholder="e.g. days, hours" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+        <label style="font-size:13px;font-weight:600;">Category
+          <select id="edit-f2" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+            <option value="">— none —</option>
+            ${cats.map(c=>`<option value="${c}" ${item.category===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </label>
+        <label style="font-size:13px;font-weight:600;">Thumbnail Image URL <span style="font-weight:400;color:var(--text-3);">(optional)</span>
+          <input id="edit-f3" value="${item.imageUrl||''}" placeholder="https://…" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+        </label>
+        ${item.imageUrl ? `<img src="${item.imageUrl}" alt="" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">` : ''}
+      </div>`;
+
+  } else if (collection === 'sites') {
+    item = (md.sites || []).find(x => x.id === id);
+    if (!item) return;
+    bodyHtml = `
+      <label style="font-size:13px;font-weight:600;">Site / Zone Name
+        <input id="edit-f0" value="${item.name||''}" style="display:block;width:100%;margin-top:4px;padding:10px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);">
+      </label>`;
+  } else {
+    return;
+  }
+
+  openModal(
+    'Edit ' + (item.name || 'Item'),
+    bodyHtml,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+     <button class="btn btn-primary" onclick="saveAdminItemEdit('${collection}','${id}')">Save</button>`
+  );
+}
+
+function saveAdminItemEdit(collection, id) {
+  const md = APP.masterData;
+  const f0 = document.getElementById('edit-f0')?.value.trim();
+  const f1 = document.getElementById('edit-f1')?.value.trim();
+  const f2 = document.getElementById('edit-f2')?.value;
+  const f3 = document.getElementById('edit-f3')?.value.trim();
+
+  if (!f0) { notify('Name cannot be empty.', true); return; }
+
+  if (collection === 'teamMembers') {
+    const item = (md.teamMembers || []).find(x => x.id === id);
+    if (item) { item.name = f0; if (f1 !== undefined) item.role = f1; }
+
+  } else if (collection === 'categories') {
+    const item = (md.categories || []).find(x => x.id === id);
+    if (item) item.name = f0;
+
+  } else if (collection === 'vendors') {
+    const item = (md.vendors || []).find(x => x.id === id);
+    if (item) item.name = f0;
+
+  } else if (collection === 'materials') {
+    const item = (md.materials || []).find(x => x.id === id);
+    if (item) {
+      item.name = f0;
+      item.unit = f1 || '';
+      item.category = f2 || '';
+      if (f3) item.imageUrl = f3; else delete item.imageUrl;
+    }
+
+  } else if (collection === 'laborTypes') {
+    const item = (md.laborTypes || []).find(x => x.id === id);
+    if (item) {
+      item.name = f0;
+      item.unit = f1 || '';
+      item.category = f2 || '';
+      if (f3) item.imageUrl = f3; else delete item.imageUrl;
+    }
+
+  } else if (collection === 'sites') {
+    const item = (md.sites || []).find(x => x.id === id);
+    if (item) item.name = f0;
+  }
+
+  saveLocal();
+  syncMasterData();
+  closeModal();
+  notify('Saved');
+  render('admin');
+}
+
 function toggleVendorCat(vendorId, catName, el) {
   const v = APP.masterData.vendors.find(x => x.id === vendorId);
   if (!v) return;
@@ -4579,45 +4670,6 @@ function setSiteLocation(id) {
     (err) => notify('Could not get location: ' + err.message, true),
     { enableHighAccuracy: true, timeout: 15000 }
   );
-}
-
-// ── Representative stock images (Pexels, via Apps Script) ──
-// Unlike syncToSheets/deleteFromSheets (fire-and-forget, mode:'no-cors'),
-// this needs to actually read the response (the image URL), so it's a
-// plain fetch — the same pattern loadFromSheets() already uses
-// successfully for GET requests.
-async function fetchImageForItem(query) {
-  if (!APP.gsConnected || !APP.gsScriptUrl) return { success: false, error: 'Not connected to Google Sheets' };
-  try {
-    const res = await fetch(APP.gsScriptUrl, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'fetchItemImage', query }),
-    });
-    return await res.json();
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
-// Backfills images for whichever materials/laborTypes don't have one yet —
-// sequential (not parallel) so a single slow Apps Script execution doesn't
-// trigger a pile of concurrent Drive uploads, and so progress can be shown.
-async function fetchAllItemImages(collectionKey, force = false) {
-  const items = (APP.masterData[collectionKey] || []).filter((i) => force || !i.imageUrl);
-  const progressEl = document.getElementById('img-fetch-progress-' + collectionKey);
-  if (!items.length) { notify('All items already have images.'); return; }
-  let done = 0, failed = 0;
-  for (const item of items) {
-    if (progressEl) progressEl.textContent = `Fetching ${done + 1}/${items.length}…`;
-    const result = await fetchImageForItem(item.name);
-    if (result.success) { item.imageUrl = result.imageUrl; done++; }
-    else { failed++; console.warn('Image fetch failed for', item.name, result.error); }
-  }
-  saveLocal();
-  syncMasterData();
-  if (progressEl) progressEl.textContent = '';
-  notify(`${done} image${done===1?'':'s'} fetched${failed ? `, ${failed} failed (see console)` : ''}`, failed > 0 && done === 0);
-  render('admin');
 }
 
 // ══════════════════════════════════════════
