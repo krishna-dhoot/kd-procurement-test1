@@ -2029,6 +2029,14 @@ function doPost(e) {
   var data = JSON.parse(e.postData.contents);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // SYNC MASTER DATA — write each collection to its own sheet
+  if (data.action === 'syncMasterData') {
+    syncMasterData_(data.data || {});
+    return ContentService
+      .createTextOutput(JSON.stringify({success:true}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   // NOTIFY action — write to Notifications sheet + send OneSignal push
   if (data.action === 'notify') {
     handleNotify_(data.type, data.data || {});
@@ -2090,13 +2098,38 @@ function doPost(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// ── Master data sync — writes each collection to its own sheet ─
+function syncMasterData_(md) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  writeSheet_(ss, 'Categories',  ['ID','Name'],
+    (md.categories||[]).map(function(c){ return [c.id, c.name]; }));
+  writeSheet_(ss, 'Materials',   ['ID','Name','Unit','Category','ImageUrl'],
+    (md.materials||[]).map(function(m){ return [m.id, m.name, m.unit||'', m.category||'', m.imageUrl||'']; }));
+  writeSheet_(ss, 'LaborTypes',  ['ID','Name','Unit','Category','ImageUrl'],
+    (md.laborTypes||[]).map(function(l){ return [l.id, l.name, l.unit||'', l.category||'', l.imageUrl||'']; }));
+  writeSheet_(ss, 'TeamMembers', ['ID','Name','Role','Approver','PinHash'],
+    (md.teamMembers||[]).map(function(m){ return [m.id, m.name, m.role||'', m.approver?'true':'false', m.pinHash||'']; }));
+  writeSheet_(ss, 'Sites',       ['ID','Name','Lat','Lng'],
+    (md.sites||[]).map(function(s){ return [s.id, s.name, s.lat||'', s.lng||'']; }));
+  writeSheet_(ss, 'Vendors',     ['ID','Name','Categories'],
+    (md.vendors||[]).map(function(v){ return [v.id, v.name, JSON.stringify(v.categories||[])]; }));
+}
+
+function writeSheet_(ss, name, headers, rows) {
+  var sheet = ss.getSheetByName(name) || ss.insertSheet(name);
+  sheet.clearContents();
+  var all = [headers].concat(rows);
+  sheet.getRange(1, 1, all.length, headers.length).setValues(all);
+}
+
 // ── doGet ─────────────────────────────────────────────────────
 function doGet(e) {
   var action = e.parameter.action;
   if (action === 'readAll') {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheets = ['Requisitions','PurchaseOrders',
-                  'SiteReceipts','Works','MasterData','Notifications'];
+    var sheets = ['Requisitions','PurchaseOrders','SiteReceipts','Works',
+                  'Notifications','MasterData',
+                  'Categories','Materials','LaborTypes','TeamMembers','Sites','Vendors'];
     var result = {};
     sheets.forEach(function(name) {
       var sheet = ss.getSheetByName(name);
@@ -2105,7 +2138,7 @@ function doGet(e) {
       var headers = rows[0];
       result[name] = rows.slice(1).map(function(row) {
         var obj = {};
-        headers.forEach(function(h, i) { obj[h] = row[i]; });
+        headers.forEach(function(h, i) { obj[String(h)] = row[i]; });
         return obj;
       });
     });
@@ -4886,18 +4919,12 @@ async function syncToSheets(sheetName, record) {
 async function syncMasterData() {
   if (!APP.gsConnected || !APP.gsScriptUrl) return;
   const payload = {
-    sheet:   'MasterData',
-    headers: ['Key', 'Data (JSON)'],
-    row:     ['masterData', JSON.stringify(APP.masterData)],
+    action: 'syncMasterData',
+    data: APP.masterData,
   };
   try {
     const blob = new Blob([JSON.stringify(payload)], {type: 'text/plain'});
-    await fetch(APP.gsScriptUrl, {
-      method: 'POST',
-      mode:   'no-cors',
-      body:   blob,
-    });
-    // no notify — silent background save
+    await fetch(APP.gsScriptUrl, { method: 'POST', mode: 'no-cors', body: blob });
   } catch(e) {
     console.warn('Master data sync failed:', e);
   }
@@ -5004,20 +5031,37 @@ async function loadFromSheets(silent = false) {
     const res = await fetch(`${APP.gsScriptUrl}?action=readAll`, { method: 'GET' });
     const data = await res.json();
 
-    // ── Load master data ──
-    if (data.MasterData && data.MasterData.length > 0) {
+    // ── Load master data from structured sheets ──
+    const newCats  = (data.Categories  || []).map(r => ({ id: r['ID'], name: r['Name'] })).filter(r => r.id && r.name);
+    const newMats  = (data.Materials   || []).map(r => { const o = { id: r['ID'], name: r['Name'] }; if (r['Unit']) o.unit = r['Unit']; if (r['Category']) o.category = r['Category']; if (r['ImageUrl']) o.imageUrl = r['ImageUrl']; return o; }).filter(r => r.id && r.name);
+    const newLabor = (data.LaborTypes  || []).map(r => { const o = { id: r['ID'], name: r['Name'] }; if (r['Unit']) o.unit = r['Unit']; if (r['Category']) o.category = r['Category']; if (r['ImageUrl']) o.imageUrl = r['ImageUrl']; return o; }).filter(r => r.id && r.name);
+    const newTeam  = (data.TeamMembers || []).map(r => { const o = { id: r['ID'], name: r['Name'], role: r['Role']||'', approver: r['Approver']==='true', pinHash: r['PinHash']||'' }; return o; }).filter(r => r.id && r.name);
+    const newSites = (data.Sites       || []).map(r => { const o = { id: r['ID'], name: r['Name'] }; if (r['Lat']) o.lat = parseFloat(r['Lat']); if (r['Lng']) o.lng = parseFloat(r['Lng']); return o; }).filter(r => r.id && r.name);
+    const newVendors = (data.Vendors   || []).map(r => { let cats = []; try { cats = JSON.parse(r['Categories']||'[]'); } catch(e){} return { id: r['ID'], name: r['Name'], categories: cats }; }).filter(r => r.id && r.name);
+
+    if (newCats.length || newMats.length || newLabor.length || newTeam.length) {
+      // New structured sheets — use them
+      if (newCats.length)    APP.masterData.categories  = newCats;
+      if (newMats.length)    APP.masterData.materials   = newMats;
+      if (newLabor.length)   APP.masterData.laborTypes  = newLabor;
+      if (newTeam.length)    APP.masterData.teamMembers = newTeam;
+      if (newSites.length)   APP.masterData.sites       = newSites;
+      if (newVendors.length) APP.masterData.vendors     = newVendors;
+      _migrateMasterData();
+    } else if (data.MasterData && data.MasterData.length > 0) {
+      // Legacy fallback — single JSON blob
       const mdRow = data.MasterData.find(r => r['Key'] === 'masterData');
       if (mdRow && mdRow['Data (JSON)']) {
         try {
           const parsed = JSON.parse(mdRow['Data (JSON)']);
           Object.keys(parsed).forEach(k => { APP.masterData[k] = parsed[k]; });
-          (APP.masterData.teamMembers||[]).forEach(m => { if (m.approver === undefined) m.approver = false; });
-          if (!APP.masterData.works)      APP.masterData.works = [];
-          if (!APP.masterData.categories) APP.masterData.categories = [];
           _migrateMasterData();
         } catch(e) { console.warn('Could not parse master data from sheet:', e); }
       }
     }
+    (APP.masterData.teamMembers||[]).forEach(m => { if (m.approver === undefined) m.approver = false; });
+    if (!APP.masterData.works)      APP.masterData.works = [];
+    if (!APP.masterData.categories) APP.masterData.categories = [];
 
     // ── Load procurement records ──
     const sheetMap = {
