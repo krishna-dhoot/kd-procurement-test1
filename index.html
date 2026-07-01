@@ -340,7 +340,9 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
 
   /* ══ STAT CARDS ══ */
   .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-  .stat-card { background: var(--surface); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+  .stat-card { background: var(--surface); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); cursor: pointer; transition: box-shadow 0.15s, transform 0.1s; }
+  .stat-card:active { transform: scale(0.97); }
+  .stat-card.active { box-shadow: 0 0 0 2px var(--green); background: var(--green-light,#f0faf4); }
   .stat-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
   .stat-value { font-size: 24px; font-weight: 600; color: var(--text); font-family: 'DM Mono', monospace; }
   .stat-value.green { color: var(--green-dark); }
@@ -877,6 +879,8 @@ const APP = {
   counters: { SR: 0, PO: 0, MRE: 0, WK: 0 },
   notifications: [],   // loaded from Notifications sheet
 
+  dashView: null, // active tile key: 'pendingApproval'|'pendingOrder'|'activePOs'|'pendingDelivery'
+
   filters: {
     req: { category: '', status: '' },
     po:  { vendor: '', category: '', status: '' },
@@ -1218,19 +1222,87 @@ function badgeHtml(status) {
 }
 
 // ── Dashboard ──
+function setDashView(key) {
+  APP.dashView = APP.dashView === key ? null : key;
+  render('dashboard');
+}
+
 function renderDashboard() {
   const r = APP.records;
   const site = APP.currentSite;
   const siteReqs = r.requisitions.filter(x => x.site === site || !x.site);
   const sitePOs  = r.pos.filter(x => x.site === site || !x.site);
 
-  const pendingApproval = siteReqs.filter(x => x.status==='pending').length;
-  const pendingOrder    = siteReqs.filter(x => x.status==='approved' && !sitePOs.find(p=>p.srRef===x.id)).length;
-  const activePOs       = sitePOs.filter(x => x.status!=='complete').length;
-  const pendingDelivery = sitePOs.filter(x => x.status==='sent'||x.status==='partial').length;
+  const lists = {
+    pendingApproval: siteReqs.filter(x => x.status === 'pending').slice().reverse(),
+    pendingOrder:    siteReqs.filter(x => x.status === 'approved' && !sitePOs.find(p => p.srRef === x.id)).slice().reverse(),
+    activePOs:       sitePOs.filter(x => x.status !== 'complete').slice().reverse(),
+    pendingDelivery: sitePOs.filter(x => x.status === 'sent' || x.status === 'partial').slice().reverse(),
+  };
 
-  const toOrderList    = siteReqs.filter(x => x.status==='approved' && !sitePOs.find(p=>p.srRef===x.id)).slice(-5).reverse();
-  const toDeliverList  = sitePOs.filter(x => x.status==='sent'||x.status==='partial').slice(-5).reverse();
+  const tiles = [
+    { key: 'pendingApproval', label: 'Pending Approval', color: 'amber' },
+    { key: 'pendingOrder',    label: 'Pending Order',    color: 'red'   },
+    { key: 'activePOs',       label: 'Active POs',       color: ''      },
+    { key: 'pendingDelivery', label: 'Pending Delivery', color: 'amber' },
+  ];
+
+  const av = APP.dashView;
+
+  // Build the drill-down list for the active tile
+  let drillHtml = '';
+  if (av === 'pendingApproval') {
+    const items = lists.pendingApproval;
+    drillHtml = items.length ? items.map(x => `
+      <div class="record-card" onclick="viewRequisition('${x.id}')">
+        <div class="record-card-top">
+          <div><div class="record-card-id">${x.id}</div><div class="record-card-title">${firstItemLabel(x)}</div>
+          <div class="record-card-sub">${x.requestedBy||''} · ${fmtDate(x.date)}</div></div>
+          ${badgeHtml(x.status)}
+        </div>
+        ${isApprover() ? `<div class="record-card-bottom"><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();approveReq('${x.id}')">✓ Approve</button></div>` : ''}
+      </div>`).join('')
+    : '<div class="empty-state"><div class="empty-icon">✅</div><p>No requisitions pending approval</p></div>';
+
+  } else if (av === 'pendingOrder') {
+    const items = lists.pendingOrder;
+    drillHtml = items.length ? items.map(x => `
+      <div class="record-card" onclick="viewRequisition('${x.id}')">
+        <div class="record-card-top">
+          <div><div class="record-card-id">${x.id}</div><div class="record-card-title">${firstItemLabel(x)}</div>
+          <div class="record-card-sub">${x.requestedBy||''} · ${fmtDate(x.date)}</div></div>
+          ${badgeHtml(x.status)}
+        </div>
+        <div class="record-card-bottom"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();createPOFromReq('${x.id}')">→ Create PO</button></div>
+      </div>`).join('')
+    : '<div class="empty-state"><div class="empty-icon">✅</div><p>All approved requests have POs raised</p></div>';
+
+  } else if (av === 'activePOs') {
+    const items = lists.activePOs;
+    drillHtml = items.length ? items.map(x => `
+      <div class="record-card" onclick="viewPO('${x.id}')">
+        <div class="record-card-top">
+          <div><div class="record-card-id">${x.id}</div><div class="record-card-title">${x.vendor||'—'}</div>
+          <div class="record-card-sub">SR: ${x.srRef||'—'} · ${fmtDate(x.date)}</div></div>
+          <div style="text-align:right">${badgeHtml(x.status)}<div class="record-card-amount">${fmtAmt(x.amount)}</div></div>
+        </div>
+        ${x.status==='sent'||x.status==='partial' ? `<div class="record-card-bottom"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();createMREFromPO('${x.id}')">→ MRE</button></div>` : ''}
+      </div>`).join('')
+    : '<div class="empty-state"><div class="empty-icon">📄</div><p>No active purchase orders</p></div>';
+
+  } else if (av === 'pendingDelivery') {
+    const items = lists.pendingDelivery;
+    drillHtml = items.length ? items.map(x => `
+      <div class="record-card" onclick="viewPO('${x.id}')">
+        <div class="record-card-top">
+          <div><div class="record-card-id">${x.id}</div><div class="record-card-title">${x.vendor||'—'}</div>
+          <div class="record-card-sub">${fmtAmt(x.amount)}${x.deliveryDate?' · Due '+fmtDate(x.deliveryDate):''}</div></div>
+          ${badgeHtml(x.status)}
+        </div>
+        <div class="record-card-bottom"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();createMREFromPO('${x.id}')">→ MRE</button></div>
+      </div>`).join('')
+    : '<div class="empty-state"><div class="empty-icon">🚛</div><p>No pending deliveries</p></div>';
+  }
 
   return `
     <div>
@@ -1239,33 +1311,13 @@ function renderDashboard() {
         <span class="new-req-hero-label">New Request</span>
       </button>
       <div class="stats-row">
-        <div class="stat-card"><div class="stat-label">Pending Approval</div><div class="stat-value amber">${pendingApproval}</div></div>
-        <div class="stat-card"><div class="stat-label">Pending Order</div><div class="stat-value red">${pendingOrder}</div></div>
-        <div class="stat-card"><div class="stat-label">Active POs</div><div class="stat-value">${activePOs}</div></div>
-        <div class="stat-card"><div class="stat-label">Pending Delivery</div><div class="stat-value amber">${pendingDelivery}</div></div>
+        ${tiles.map(t => `
+          <div class="stat-card${av === t.key ? ' active' : ''}" onclick="setDashView('${t.key}')">
+            <div class="stat-label">${t.label}</div>
+            <div class="stat-value ${t.color}">${lists[t.key].length}</div>
+          </div>`).join('')}
       </div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.05em;margin:4px 0 10px;">Approved — Pending Order</div>
-      <div class="record-list">
-        ${toOrderList.length ? toOrderList.map(x=>`
-          <div class="record-card" onclick="createPOFromReq('${x.id}')">
-            <div class="record-card-top">
-              <div><div class="record-card-id">${x.id}</div><div class="record-card-title">${x.site||'—'}</div></div>
-              ${badgeHtml(x.status)}
-            </div>
-            <div style="font-size:12px;color:var(--text-3);">${x.items?.length||0} items · ${fmtDate(x.date)}</div>
-          </div>`).join('') : '<div class="empty-state"><div class="empty-icon">✅</div><p>All approved requests have POs raised</p></div>'}
-      </div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 10px;">Pending Delivery</div>
-      <div class="record-list">
-        ${toDeliverList.length ? toDeliverList.map(x=>`
-          <div class="record-card" onclick="createMREFromPO('${x.id}')">
-            <div class="record-card-top">
-              <div><div class="record-card-id">${x.id}</div><div class="record-card-title">${x.vendor||'—'}</div></div>
-              ${badgeHtml(x.status)}
-            </div>
-            <div style="font-size:12px;color:var(--text-3);">${fmtAmt(x.amount)}${x.deliveryDate?' · Due '+fmtDate(x.deliveryDate):''}</div>
-          </div>`).join('') : '<div class="empty-state"><div class="empty-icon">🚛</div><p>No pending deliveries</p></div>'}
-      </div>
+      ${av ? `<div class="record-list" style="margin-top:4px;">${drillHtml}</div>` : ''}
     </div>`;
 }
 
