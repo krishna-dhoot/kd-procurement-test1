@@ -4475,7 +4475,18 @@ function saveAdminItemEdit(collection, id) {
 
   } else if (collection === 'categories') {
     const item = (md.categories || []).find(x => x.id === id);
-    if (item) item.name = f0;
+    if (item) {
+      const oldName = item.name;
+      item.name = f0;
+      if (oldName !== f0) {
+        // Cascade rename to everything that references this category by name
+        (md.materials   || []).forEach(m => { if (m.category === oldName) m.category = f0; });
+        (md.laborTypes  || []).forEach(l => { if (l.category === oldName) l.category = f0; });
+        (md.vendors     || []).forEach(v => {
+          if (Array.isArray(v.categories)) v.categories = v.categories.map(c => c === oldName ? f0 : c);
+        });
+      }
+    }
 
   } else if (collection === 'vendors') {
     const item = (md.vendors || []).find(x => x.id === id);
