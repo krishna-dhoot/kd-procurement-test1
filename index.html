@@ -339,7 +339,7 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
   .wizard-qty-input { width: 90px; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; text-align: center; }
 
   /* ══ STAT CARDS ══ */
-  .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
   .stat-card { background: var(--surface); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); cursor: pointer; transition: box-shadow 0.15s, transform 0.1s; }
   .stat-card:active { transform: scale(0.97); }
   .stat-card.active { box-shadow: 0 0 0 2px var(--green); background: var(--green-light,#f0faf4); }
@@ -501,7 +501,7 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
     .modal-overlay { align-items: center; }
     .modal { border-radius: 16px; max-width: 600px; }
     .modal.modal-large { max-width: 700px; }
-    .stats-row { grid-template-columns: repeat(4, 1fr); }
+    .stats-row { grid-template-columns: repeat(3, 1fr); }
     .field-row { grid-template-columns: 1fr 1fr; }
     .items-wrap { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
     .items-table { min-width: 380px; }
