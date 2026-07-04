@@ -1,0 +1,36 @@
+name: Deploy Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps-script/**'
+      - '.clasp.json'
+      - '.github/workflows/deploy-apps-script.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Authenticate clasp
+        run: printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+
+      - name: Push Apps Script source
+        run: clasp push -f
+
+      - name: Deploy (update existing Web App deployment)
+        run: clasp deploy --deploymentId "$GAS_DEPLOYMENT_ID" --description "Auto-deploy ${{ github.sha }}"
+        env:
+          GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
