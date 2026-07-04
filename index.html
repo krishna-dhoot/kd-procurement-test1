@@ -43,9 +43,12 @@ DATA STORAGE
   On load: localStorage shown instantly, then Sheets pulled in background.
 
 GOOGLE SHEETS SYNC
-  Write (POST): Blob with JSON body → Apps Script doPost()
-    Uses no-cors mode to avoid CORS preflight.
+  Write (POST): Blob with text/plain body → Apps Script doPost()
+    text/plain keeps it a CORS-safelisted "simple request" (no preflight)
+    while still letting the client read back the real {success,error}.
     Upserts by ID (updates existing row if ID matches, else appends).
+    doPost() takes a LockService lock around all writes so concurrent
+    saves from different users can't race each other.
   Read (GET):   fetch() → Apps Script doGet(?action=readAll)
     Returns all sheet tabs as JSON. MasterData tab stores full masterData
     object as a single JSON blob (key=masterData).
@@ -2012,104 +2015,125 @@ function handleNotify_(type, d) {
 
 // ── doPost ────────────────────────────────────────────────────
 function doPost(e) {
-  var data = JSON.parse(e.postData.contents);
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // NOTIFY action — write to Notifications sheet + send OneSignal push
-  if (data.action === 'notify') {
-    handleNotify_(data.type, data.data || {});
-    return ContentService
-      .createTextOutput(JSON.stringify({success:true}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // FETCH ITEM IMAGE — search Pexels, save to Drive, return the URL
-  if (data.action === 'fetchItemImage') {
-    var imgResult = fetchItemImage_(data.query);
-    return ContentService
-      .createTextOutput(JSON.stringify(imgResult))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var sheet = ss.getSheetByName(data.sheet)
-             || ss.insertSheet(data.sheet);
-
-  // DELETE row by ID
-  if (data.action === 'delete') {
-    var rows = sheet.getDataRange().getValues();
-    for (var i = 1; i &lt; rows.length; i++) {
-      if (rows[i][0] === data.id) { sheet.deleteRow(i + 1); break; }
+    // NOTIFY action — write to Notifications sheet + send OneSignal push
+    if (data.action === 'notify') {
+      handleNotify_(data.type, data.data || {});
+      return jsonOut_({success:true});
     }
-    return ContentService
-      .createTextOutput(JSON.stringify({success:true}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
 
-  // --- Ensure header row is present; add any missing columns ---
-  var sheetHeaders;
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(data.headers);
-    sheetHeaders = data.headers.slice();
-  } else {
-    sheetHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
-                       .map(function(h){ return String(h); });
-    // Append any column the app now sends that the sheet doesn't have yet
-    data.headers.forEach(function(h) {
-      if (sheetHeaders.indexOf(h) === -1) {
-        sheetHeaders.push(h);
-        sheet.getRange(1, sheetHeaders.length).setValue(h);
+    // FETCH ITEM IMAGE — search Pexels, save to Drive, return the URL
+    if (data.action === 'fetchItemImage') {
+      return jsonOut_(fetchItemImage_(data.query));
+    }
+
+    // Every write below touches a data sheet, so serialize them: without a
+    // lock, two users saving at the same moment can both read the same
+    // "no existing row" snapshot and end up appending duplicate rows, or
+    // both look up the same row index and clobber each other's update.
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(10000)) {
+      return jsonOut_({success:false, error:'Sheet is busy — please retry.'});
+    }
+    try {
+      var sheet = ss.getSheetByName(data.sheet)
+                 || ss.insertSheet(data.sheet);
+
+      // DELETE row by ID
+      if (data.action === 'delete') {
+        var delRow = findRowById_(sheet, data.id);
+        if (delRow &gt; -1) sheet.deleteRow(delRow);
+        return jsonOut_({success:true});
       }
-    });
-  }
 
-  // Map values to the sheet's actual column order (handles reordering &amp; new cols)
-  var mappedRow = sheetHeaders.map(function(h) {
-    var idx = data.headers.indexOf(h);
-    return idx &gt;= 0 ? data.row[idx] : '';
-  });
+      // --- Ensure header row is present; add any missing columns ---
+      var sheetHeaders;
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(data.headers);
+        sheetHeaders = data.headers.slice();
+      } else {
+        sheetHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+                           .map(function(h){ return String(h); });
+        // Append any column the app now sends that the sheet doesn't have yet
+        data.headers.forEach(function(h) {
+          if (sheetHeaders.indexOf(h) === -1) {
+            sheetHeaders.push(h);
+            sheet.getRange(1, sheetHeaders.length).setValue(h);
+          }
+        });
+      }
 
-  // UPDATE existing row if ID matches, else append
-  var values = sheet.getDataRange().getValues();
-  var found = false;
-  for (var i = 1; i &lt; values.length; i++) {
-    if (String(values[i][0]) === String(mappedRow[0])) {
-      sheet.getRange(i + 1, 1, 1, mappedRow.length).setValues([mappedRow]);
-      found = true; break;
+      // Map values to the sheet's actual column order (handles reordering &amp; new cols)
+      var mappedRow = sheetHeaders.map(function(h) {
+        var idx = data.headers.indexOf(h);
+        return idx &gt;= 0 ? data.row[idx] : '';
+      });
+
+      // UPDATE existing row if ID matches, else append
+      var rowIdx = findRowById_(sheet, mappedRow[0]);
+      if (rowIdx &gt; -1) {
+        sheet.getRange(rowIdx, 1, 1, mappedRow.length).setValues([mappedRow]);
+      } else {
+        sheet.appendRow(mappedRow);
+      }
+
+      return jsonOut_({success:true});
+    } finally {
+      lock.releaseLock();
     }
+  } catch (err) {
+    return jsonOut_({success:false, error: err.message});
   }
-  if (!found) sheet.appendRow(mappedRow);
+}
 
-  return ContentService
-    .createTextOutput(JSON.stringify({success:true}))
-    .setMimeType(ContentService.MimeType.JSON);
+// Finds the 1-indexed row whose column-A value matches id. Reads only
+// column A — not getDataRange(), which pulls every column (including the
+// large JSON blobs in the others) of every row — so lookups stay cheap as
+// a sheet grows into the thousands of rows.
+function findRowById_(sheet, id) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow &lt; 2) return -1;
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i &lt; ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) return i + 2;
+  }
+  return -1;
+}
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+                        .setMimeType(ContentService.MimeType.JSON);
 }
 
 // ── doGet ─────────────────────────────────────────────────────
 function doGet(e) {
-  var action = e.parameter.action;
-  if (action === 'readAll') {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheets = ['Requisitions','PurchaseOrders',
-                  'SiteReceipts','Works','MasterData','Notifications'];
-    var result = {};
-    sheets.forEach(function(name) {
-      var sheet = ss.getSheetByName(name);
-      if (!sheet || sheet.getLastRow() &lt; 2) { result[name] = []; return; }
-      var rows = sheet.getDataRange().getValues();
-      var headers = rows[0];
-      result[name] = rows.slice(1).map(function(row) {
-        var obj = {};
-        headers.forEach(function(h, i) { obj[h] = row[i]; });
-        return obj;
+  try {
+    var action = e.parameter.action;
+    if (action === 'readAll') {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheets = ['Requisitions','PurchaseOrders',
+                    'SiteReceipts','Works','MasterData','Notifications'];
+      var result = {};
+      sheets.forEach(function(name) {
+        var sheet = ss.getSheetByName(name);
+        if (!sheet || sheet.getLastRow() &lt; 2) { result[name] = []; return; }
+        var rows = sheet.getDataRange().getValues();
+        var headers = rows[0];
+        result[name] = rows.slice(1).map(function(row) {
+          var obj = {};
+          headers.forEach(function(h, i) { obj[h] = row[i]; });
+          return obj;
+        });
       });
-    });
-    return ContentService
-      .createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
+      return jsonOut_(result);
+    }
+    return jsonOut_({status:'ok'});
+  } catch (err) {
+    return jsonOut_({status:'error', error: err.message});
   }
-  return ContentService
-    .createTextOutput(JSON.stringify({status:'ok'}))
-    .setMimeType(ContentService.MimeType.JSON);
 }</pre>
         </details>
 
@@ -4582,10 +4606,8 @@ function setSiteLocation(id) {
 }
 
 // ── Representative stock images (Pexels, via Apps Script) ──
-// Unlike syncToSheets/deleteFromSheets (fire-and-forget, mode:'no-cors'),
-// this needs to actually read the response (the image URL), so it's a
-// plain fetch — the same pattern loadFromSheets() already uses
-// successfully for GET requests.
+// Plain fetch — same pattern loadFromSheets() already uses for GET, and
+// which postToGas() now uses for POST too (see postToGas above).
 async function fetchImageForItem(query) {
   if (!APP.gsConnected || !APP.gsScriptUrl) return { success: false, error: 'Not connected to Google Sheets' };
   try {
@@ -4668,6 +4690,19 @@ async function manualRefresh() {
   hideOverlay();
 }
 
+// Posts to the Apps Script web app and reads back its real {success,error}
+// response. Deliberately NOT mode:'no-cors' — the payload is sent as
+// text/plain (a CORS-safelisted content type), so it's already a "simple
+// request" that skips preflight; dropping no-cors just lets us read the
+// response instead of blindly trusting the fetch didn't throw.
+async function postToGas(payload) {
+  const blob = new Blob([JSON.stringify(payload)], {type: 'text/plain'});
+  const res = await fetch(APP.gsScriptUrl, { method: 'POST', body: blob });
+  const result = await res.json();
+  if (!result.success) console.warn('Apps Script reported failure:', result.error);
+  return result;
+}
+
 async function syncToSheets(sheetName, record) {
   if (!APP.gsConnected || !APP.gsScriptUrl) return true;
   const payload = {
@@ -4676,9 +4711,8 @@ async function syncToSheets(sheetName, record) {
     row:     SHEET_ROW[sheetName](record),
   };
   try {
-    const blob = new Blob([JSON.stringify(payload)], {type: 'text/plain'});
-    await fetch(APP.gsScriptUrl, { method: 'POST', mode: 'no-cors', body: blob });
-    return true;
+    const result = await postToGas(payload);
+    return !!result.success;
   } catch(e) {
     console.warn('Sheets sync failed:', e);
     return false;
@@ -4694,15 +4728,11 @@ async function syncMasterData() {
     row:     ['masterData', JSON.stringify(APP.masterData)],
   };
   try {
-    const blob = new Blob([JSON.stringify(payload)], {type: 'text/plain'});
-    await fetch(APP.gsScriptUrl, {
-      method: 'POST',
-      mode:   'no-cors',
-      body:   blob,
-    });
-    // no notify — silent background save
+    const result = await postToGas(payload);
+    if (!result.success) notify('Master data sync failed — check connection.', true);
   } catch(e) {
     console.warn('Master data sync failed:', e);
+    notify('Master data sync failed — check connection.', true);
   }
 }
 
@@ -4721,12 +4751,13 @@ async function deleteFromSheets(sheetName, id) {
   setTimeout(() => _pendingDeletes.delete(id), 60000); // safe to forget after 60s
   const payload = { action: 'delete', sheet: sheetName, id };
   try {
-    const blob = new Blob([JSON.stringify(payload)], {type: 'text/plain'});
-    await fetch(APP.gsScriptUrl, { method: 'POST', mode: 'no-cors', body: blob });
+    const result = await postToGas(payload);
+    if (!result.success) notify('Delete failed — check connection.', true);
     // No scheduleRefresh here — GAS hasn't finished yet when the refresh would fire,
     // causing deleted records to reappear. In-memory removal is the source of truth.
   } catch(e) {
     console.warn('Sheets delete failed:', e);
+    notify('Delete failed — check connection.', true);
   }
 }
 
