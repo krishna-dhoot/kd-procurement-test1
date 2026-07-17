@@ -125,25 +125,6 @@ PENDING / KNOWN ISSUES (as of handover to Claude Code)
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0F6E56">
 <title>Site Procurement Manager</title>
-<!-- OneSignal Web Push — shares our own sw.js (see serviceWorkerPath below)
-     instead of registering a separate OneSignalSDKWorker.js, so push and
-     offline-caching live in one service worker. -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    // Scope is computed from the current page's own directory rather than
-    // hardcoded to "/", so this works whether the site is hosted at a
-    // domain root (Netlify) or under a subpath (GitHub Pages project
-    // sites serve from /<repo-name>/, not the domain root).
-    const basePath = new URL('.', window.location.href).pathname;
-    await OneSignal.init({
-      appId: "db6beb30-8bc6-44fc-8dee-833e0ace7746",
-      serviceWorkerPath: "sw.js",
-      serviceWorkerParam: { scope: basePath }
-    });
-  });
-</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -705,10 +686,6 @@ if ('serviceWorker' in navigator) {
     <span style="font-size:18px;">🔔</span>
     <span class="notif-panel-title">Notifications</span>
     <button class="notif-panel-close" onclick="closeNotifPanel()">✕</button>
-  </div>
-  <div id="push-optin-banner" style="display:none;margin:10px 14px 0;padding:10px 12px;background:var(--gray-light);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text-2);">
-    Get notified instantly for new requisitions, orders and deliveries — even when the app is closed.
-    <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;margin-top:8px;" onclick="enablePushNotifications()">🔔 Enable Push Notifications</button>
   </div>
   <button class="notif-mark-all-btn" onclick="markAllNotifsRead()">Mark all as read</button>
   <div class="notif-list" id="notif-list">
@@ -1525,15 +1502,10 @@ function renderAdmin() {
   const materialsCard = `
     <div class="admin-list-card" id="admin-card-materials">
       <div class="admin-list-header"><h3>Materials / Items</h3><span>${(md.materials||[]).length} entries</span></div>
-      <div style="padding:8px 10px 0;">
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('materials')">🖼️ Fetch Images</button>
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('materials', true)" title="Re-fetches every item, including ones that already have an image — use this if images are showing broken">🔄 Refetch All</button>
-        <span id="img-fetch-progress-materials" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
-      </div>
       <div class="admin-item-list">
         ${(md.materials||[]).map(m=>`
           <div class="admin-item">
-            ${m.imageUrl ? `<img src="${m.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
+            ${m.imageUrl ? `<img src="${m.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:32px;height:32px;border-radius:6px;background:var(--gray-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">📦</div>`}
             <div style="flex:1;min-width:0;">
               <div class="admin-item-name">${m.name}</div>
               <div class="admin-item-sub">${m.unit||''}</div>
@@ -1558,15 +1530,10 @@ function renderAdmin() {
   const laborCard = `
     <div class="admin-list-card" id="admin-card-laborTypes">
       <div class="admin-list-header"><h3>Labor Trades</h3><span>${(md.laborTypes||[]).length} entries</span></div>
-      <div style="padding:8px 10px 0;">
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('laborTypes')">🖼️ Fetch Images</button>
-        <button class="btn btn-secondary btn-sm" onclick="fetchAllItemImages('laborTypes', true)" title="Re-fetches every item, including ones that already have an image — use this if images are showing broken">🔄 Refetch All</button>
-        <span id="img-fetch-progress-laborTypes" style="font-size:11px;color:var(--text-3);margin-left:6px;"></span>
-      </div>
       <div class="admin-item-list">
         ${(md.laborTypes||[]).map(l=>`
           <div class="admin-item">
-            ${l.imageUrl ? `<img src="${l.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
+            ${l.imageUrl ? `<img src="${l.imageUrl}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:32px;height:32px;border-radius:6px;background:var(--gray-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">👷</div>`}
             <div style="flex:1;min-width:0;">
               <div class="admin-item-name">${l.name}</div>
               <div class="admin-item-sub">${l.unit||''}</div>
@@ -1938,7 +1905,6 @@ function renderGsSetup() {
           <div style="display:flex;flex-direction:column;gap:5px;">
             <div>The Apps Script backend now lives in <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">apps-script/Code.gs</code> in the repo. A GitHub Actions workflow pushes it to your Apps Script project and redeploys automatically on every push — no more copy-pasting code into the Apps Script editor.</div>
             <div>One-time setup (clasp login + GitHub secrets): see <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">apps-script/README.md</code>.</div>
-            <div>After that first setup, edit <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">ONESIGNAL_REST_API_KEY</code> / <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">PEXELS_API_KEY</code> in that file (not in the Apps Script editor), so they survive future auto-deploys.</div>
             <div>The Web App URL below only needs to be set once — auto-deploys update the same deployment, so the URL never changes.</div>
           </div>
         </div>
@@ -4411,43 +4377,6 @@ function setSiteLocation(id) {
   );
 }
 
-// ── Representative stock images (Pexels, via Apps Script) ──
-// Plain fetch — same pattern loadFromSheets() already uses for GET, and
-// which postToGas() now uses for POST too (see postToGas above).
-async function fetchImageForItem(query) {
-  if (!APP.gsConnected || !APP.gsScriptUrl) return { success: false, error: 'Not connected to Google Sheets' };
-  try {
-    const res = await fetch(APP.gsScriptUrl, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'fetchItemImage', query }),
-    });
-    return await res.json();
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
-// Backfills images for whichever materials/laborTypes don't have one yet —
-// sequential (not parallel) so a single slow Apps Script execution doesn't
-// trigger a pile of concurrent Drive uploads, and so progress can be shown.
-async function fetchAllItemImages(collectionKey, force = false) {
-  const items = (APP.masterData[collectionKey] || []).filter((i) => force || !i.imageUrl);
-  const progressEl = document.getElementById('img-fetch-progress-' + collectionKey);
-  if (!items.length) { notify('All items already have images.'); return; }
-  let done = 0, failed = 0;
-  for (const item of items) {
-    if (progressEl) progressEl.textContent = `Fetching ${done + 1}/${items.length}…`;
-    const result = await fetchImageForItem(item.name);
-    if (result.success) { item.imageUrl = result.imageUrl; done++; }
-    else { failed++; console.warn('Image fetch failed for', item.name, result.error); }
-  }
-  saveLocal();
-  syncMasterData();
-  if (progressEl) progressEl.textContent = '';
-  notify(`${done} image${done===1?'':'s'} fetched${failed ? `, ${failed} failed (see console)` : ''}`, failed > 0 && done === 0);
-  render('admin');
-}
-
 // ══════════════════════════════════════════
 //  GOOGLE SHEETS SYNC  (Apps Script Web App)
 // ══════════════════════════════════════════
@@ -4764,58 +4693,11 @@ function openNotifPanel() {
   document.getElementById('notif-overlay').classList.add('open');
   document.getElementById('notif-panel').classList.add('open');
   renderNotifList();
-  refreshPushOptInBanner();
   // Mark as read after 800ms so badge briefly shows before clearing
   setTimeout(() => {
     localStorage.setItem('notifSeenAt', new Date().toISOString());
     updateNotifBadge();
   }, 800);
-}
-
-// --- Push opt-in (OneSignal) ---
-function refreshPushOptInBanner() {
-  const banner = document.getElementById('push-optin-banner');
-  if (!banner || !window.OneSignalDeferred) return;
-  window.OneSignalDeferred.push(async (OneSignal) => {
-    const sub = OneSignal.User.PushSubscription;
-    // Require an actual subscription id, not just the optedIn flag — that
-    // flag can be true from an earlier attempt that never actually
-    // completed registration, which would otherwise hide the banner with
-    // no real subscription behind it.
-    const reallySubscribed = sub.optedIn && !!sub.id;
-    banner.style.display = reallySubscribed ? 'none' : 'block';
-  });
-}
-
-function enablePushNotifications() {
-  if (!window.OneSignalDeferred) return;
-  window.OneSignalDeferred.push(async (OneSignal) => {
-    // The whole body is wrapped — an uncaught throw inside this callback
-    // (e.g. from optIn() itself failing) was an unhandled promise
-    // rejection with no UI feedback at all, which is exactly the "clicking
-    // the button did nothing" symptom seen on retry.
-    try {
-      await OneSignal.Notifications.requestPermission();
-      const sub = OneSignal.User.PushSubscription;
-      // Always force a clean opt-out/opt-in cycle on manual trigger,
-      // rather than trusting optedIn (which can be a stale local flag from
-      // an earlier attempt that never actually completed registration).
-      if (Notification.permission === 'granted') {
-        if (sub.optedIn) await sub.optOut();
-        await sub.optIn();
-      }
-      refreshPushOptInBanner();
-      if (OneSignal.User.PushSubscription.optedIn && OneSignal.User.PushSubscription.id) {
-        notify('Push notifications enabled');
-      } else if (Notification.permission === 'denied') {
-        notify('Notifications blocked — enable them in your browser/site settings.', true);
-      } else {
-        notify('Subscribed locally, but no subscription id yet — see debug.', true);
-      }
-    } catch (err) {
-      notify('Push enable failed: ' + (err.message || err), true);
-    }
-  });
 }
 
 function closeNotifPanel() {

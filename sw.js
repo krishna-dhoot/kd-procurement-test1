@@ -3,11 +3,6 @@
 // online, falling back to the last cached copy when offline. Anything that
 // isn't a same-origin page load (e.g. the Google Sheets Apps Script calls)
 // is left completely untouched — this worker never caches API responses.
-//
-// Also pulls in the OneSignal worker (handles incoming push events) so push
-// notifications and offline caching share a single service worker rather
-// than fighting over the same scope.
-importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 
 const CACHE_NAME = 'procurement-app-shell';
 const APP_SHELL = ['./', './index.html'];

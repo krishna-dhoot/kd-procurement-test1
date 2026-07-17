@@ -1,64 +1,8 @@
-// ── OneSignal config (fill this in) ───────────────────────────
-var ONESIGNAL_APP_ID       = 'db6beb30-8bc6-44fc-8dee-833e0ace7746';
-var ONESIGNAL_REST_API_KEY = 'YOUR_ONESIGNAL_REST_API_KEY_HERE'; // OneSignal dashboard → Settings → Keys & IDs
-
-// ── Pexels config (free stock-photo search, fill this in) ─────
-var PEXELS_API_KEY = 'YOUR_PEXELS_API_KEY_HERE'; // pexels.com/api
-
-// Searches Pexels for a representative photo of an item name, downloads
-// it, and saves it to Drive so the app has a stable URL to use — done
-// server-side (not in the browser) purely to avoid CORS, since the
-// browser can't read cross-origin image bytes from pexels.com directly.
-function fetchItemImage_(query) {
-  try {
-    if (!PEXELS_API_KEY || PEXELS_API_KEY === 'YOUR_PEXELS_API_KEY_HERE') {
-      return { success: false, error: 'PEXELS_API_KEY not set in Apps Script' };
-    }
-    var searchRes = UrlFetchApp.fetch(
-      'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=1',
-      { headers: { Authorization: PEXELS_API_KEY }, muteHttpExceptions: true }
-    );
-    var searchData = JSON.parse(searchRes.getContentText());
-    var photo = searchData.photos && searchData.photos[0];
-    if (!photo) return { success: false, error: 'No matching stock photo found' };
-
-    var imgRes = UrlFetchApp.fetch(photo.src.medium, { muteHttpExceptions: true });
-    var blob = imgRes.getBlob();
-
-    var folders = DriveApp.getFoldersByName('Procurement Item Images');
-    var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('Procurement Item Images');
-    var file = folder.createFile(blob).setName(query + '.jpg');
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    // drive.google.com/uc?export=view is unreliable for direct <img> embedding
-    // (Google's anti-hotlinking measures often serve a scan-warning page
-    // instead of the raw image). The dedicated thumbnail endpoint is built
-    // for exactly this and renders reliably inline.
-    return { success: true, imageUrl: 'https://drive.google.com/thumbnail?sz=w400&id=' + file.getId() };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
 // ── Notification helpers ──────────────────────────────────────
-function sendOneSignal_(title, msg) {
-  if (!ONESIGNAL_REST_API_KEY || ONESIGNAL_REST_API_KEY === 'YOUR_ONESIGNAL_REST_API_KEY_HERE') return;
-  try {
-    UrlFetchApp.fetch(
-      'https://onesignal.com/api/v1/notifications',
-      { method: 'post', contentType: 'application/json',
-        headers: { Authorization: 'Basic ' + ONESIGNAL_REST_API_KEY },
-        payload: JSON.stringify({
-          app_id: ONESIGNAL_APP_ID,
-          included_segments: ['Subscribed Users'],
-          headings: { en: title },
-          contents: { en: msg }
-        }),
-        muteHttpExceptions: true }
-    );
-  } catch(e) { Logger.log('OneSignal error: ' + e); }
-}
-
+// Writes every app event to the Notifications tab, which is what backs
+// the in-app notification bell. This is the hook point for a future
+// WhatsApp integration (e.g. call out to a WhatsApp Business API / Twilio
+// send here) — nothing currently pushes these out beyond the sheet.
 function pushNotification_(type, msg, details) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('Notifications');
@@ -69,7 +13,6 @@ function pushNotification_(type, msg, details) {
   var n = Math.max(sh.getLastRow(), 1);
   var id = 'NOTIF-' + ('000' + n).slice(-4);
   sh.appendRow([id, type, msg, JSON.stringify(details || {}), new Date().toISOString()]);
-  sendOneSignal_('Site Procurement', msg);
 }
 
 function handleNotify_(type, d) {
@@ -292,15 +235,10 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // NOTIFY action — write to Notifications sheet + send OneSignal push
+    // NOTIFY action — write to Notifications sheet (backs the in-app bell)
     if (data.action === 'notify') {
       handleNotify_(data.type, data.data || {});
       return jsonOut_({success:true});
-    }
-
-    // FETCH ITEM IMAGE — search Pexels, save to Drive, return the URL
-    if (data.action === 'fetchItemImage') {
-      return jsonOut_(fetchItemImage_(data.query));
     }
 
     // Every write below touches one or more data sheets, so serialize
