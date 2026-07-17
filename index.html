@@ -38,8 +38,19 @@ PROCUREMENT FLOW  (3 stages)
 DATA STORAGE
   localStorage  — cache of all records + masterData (instant load, works offline)
   Google Sheets — source of truth; synced on every save via Apps Script Web App
-    Sheet tabs: Requisitions, PurchaseOrders, SiteReceipts,
-                VendorBills, Payments, MasterData
+    The wire format the client sends/receives has NOT changed (records with
+    items/laborItems arrays, masterData as one object) — but apps-script/Code.gs
+    now stores it normalized across many human-readable tabs instead of one
+    JSON blob per document:
+      Header tabs   — Requisitions, PurchaseOrders, SiteReceipts, Works
+                       (one row per document, no items column)
+      Item tabs     — RequisitionItems, POItems, ReceiptItems, WorkEstimateItems
+                       (one row per material/labor line, FK'd to the parent ID)
+      Catalog tabs  — Projects, TeamMembers, Vendors, Materials, LaborTypes,
+                       Categories (one row per entry — replaces the old
+                       single-cell MasterData JSON blob)
+      Notifications — unchanged
+    See apps-script/README.md for the deploy setup.
   On load: localStorage shown instantly, then Sheets pulled in background.
 
 GOOGLE SHEETS SYNC
@@ -48,21 +59,29 @@ GOOGLE SHEETS SYNC
     while still letting the client read back the real {success,error}.
     Upserts by ID (updates existing row if ID matches, else appends).
     doPost() takes a LockService lock around all writes so concurrent
-    saves from different users can't race each other.
+    saves from different users can't race each other. Apps Script splits
+    the items/laborItems JSON it receives into the relevant item tab's
+    rows (see ITEM_TABS in Code.gs), and splits a masterData sync across
+    the catalog tabs (see writeMasterData_).
   Read (GET):   fetch() → Apps Script doGet(?action=readAll)
-    Returns all sheet tabs as JSON. MasterData tab stores full masterData
-    object as a single JSON blob (key=masterData).
+    Returns all sheet tabs as JSON, with Apps Script re-joining each
+    header row's item tab rows back into an 'Items (JSON)'/'Labor Items
+    (JSON)' string and the catalog tabs back into one masterData object —
+    so the client-side shape is unchanged even though storage is normalized.
   syncToSheets(sheetName, record) — called after every save
   syncMasterData() — called after every admin panel change
   loadFromSheets() — called on startup, pulls all data
 
-MASTER DATA (managed in Admin Panel, synced to Sheets)
-  teamMembers  [{ id, name, role, approver, pinHash }]
-  vendors      [{ id, name, category }]
-  materials    [{ id, name, unit }]
-  sites        [{ id, name }]
-  paymentModes [{ id, name }]
-  urgency      [{ id, name }]
+MASTER DATA (managed in Admin Panel, synced to Sheets → Projects/TeamMembers/
+Vendors/Materials/LaborTypes/Categories catalog tabs)
+  teamMembers [{ id, name, role, approver, pinHash }]
+  vendors     [{ id, name, categories: [] }]
+  materials   [{ id, name, unit, category, imageUrl? }]
+  laborTypes  [{ id, name, unit, category, imageUrl? }]
+  categories  [{ id, name }]
+  sites       [{ id, name, lat?, lng? }]  — the Projects tab; scoping key
+              for every record (Requisitions/POs/Receipts/Works all carry
+              a Site field referencing one of these)
 
 UI / LAYOUT
   Mobile-first. Two layouts via CSS media query at 700px breakpoint:
