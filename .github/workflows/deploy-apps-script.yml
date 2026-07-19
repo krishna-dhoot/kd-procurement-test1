@@ -13,24 +13,46 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Check clasp credentials are configured
+        id: check
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$GAS_DEPLOYMENT_ID" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
+
+      - name: Not set up yet — skipping
+        if: steps.check.outputs.configured == 'false'
+        run: echo "::notice::CLASPRC_JSON secret and/or GAS_DEPLOYMENT_ID variable aren't set yet, so there's nothing to auto-deploy to. See apps-script/README.md for the one-time setup. This is not a failure — skipping cleanly until that's done."
+
       - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
 
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
         with:
           node-version: '20'
 
       - name: Install clasp
+        if: steps.check.outputs.configured == 'true'
         run: npm install -g @google/clasp
 
       - name: Authenticate clasp
+        if: steps.check.outputs.configured == 'true'
         run: printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
 
       - name: Push Apps Script source
+        if: steps.check.outputs.configured == 'true'
         run: clasp push -f
 
       - name: Deploy (update existing Web App deployment)
+        if: steps.check.outputs.configured == 'true'
         run: clasp deploy --deploymentId "$GAS_DEPLOYMENT_ID" --description "Auto-deploy ${{ github.sha }}"
         env:
           GAS_DEPLOYMENT_ID: ${{ vars.GAS_DEPLOYMENT_ID }}
